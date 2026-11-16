@@ -1,0 +1,1098 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="City Gridiron: a 3D low-poly football game you play in the browser.">
+<style>html{padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>City Gridiron</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: a scoreboard header, one scrolling view, a bottom tab bar. The match takes over the whole screen. */
+:root{
+  color-scheme:dark;
+  --bg:#0c1411;--panel:#131e19;--panel2:#1b2a22;--line:#2a3c33;--fg:#e8efe9;--muted:#8fa297;
+  --chalk:#f4c430;--ink:#141a12;--good:#4cc47a;--bad:#e5604f;--sel:#2b2812;--stage:#06090b;--glow:#ffffff;--mat:#55705f;--mat2:#6d8a78;
+  --display:'Barlow Condensed','Arial Narrow','Roboto Condensed',Impact,sans-serif;
+  --body:'Barlow','Segoe UI',system-ui,-apple-system,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.45;overflow:hidden;-webkit-tap-highlight-color:transparent}
+button,select{font:inherit;color:inherit}
+button{cursor:pointer}
+button:focus-visible,select:focus-visible{outline:2px solid var(--chalk);outline-offset:2px}
+select{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;max-width:100%}
+#app{height:100%;display:flex;flex-direction:column}
+#top,#view{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+#top{display:flex;align-items:center;gap:12px;padding-block:10px;background:var(--panel);border-bottom:1px solid var(--line)}
+#top .who{display:flex;align-items:center;gap:12px;min-width:0;flex:1}
+#top h1{font-family:var(--display);font-size:28px;font-weight:700;letter-spacing:.02em;margin:0;line-height:1;text-transform:uppercase}
+#top .meta{color:var(--muted);font-size:13px;margin-top:2px}
+#top .stat{text-align:right;font-family:var(--display);font-size:22px;font-weight:600;line-height:1.05;font-variant-numeric:tabular-nums;white-space:nowrap}
+#top .stat small{display:block;font-family:var(--body);font-size:11px;font-weight:500;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.sw{display:inline-block;width:20px;height:20px;border-radius:5px;background:linear-gradient(135deg,var(--a) 0 56%,var(--b) 56%);box-shadow:0 0 0 1px rgba(255,255,255,.25);flex:none;vertical-align:-4px}
+.sw.lg{width:42px;height:42px;border-radius:9px}
+#view{flex:1;min-height:0;overflow-y:auto;padding-block:16px}
+.wrap{max-width:1000px;margin-inline:auto;display:flex;flex-direction:column;gap:14px}
+#tabs{display:flex;background:var(--panel);border-top:1px solid var(--line)}
+#tabs button{flex:1;min-width:0;background:none;border:0;border-top:3px solid transparent;padding:11px 4px 12px;font-family:var(--display);font-size:18px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+#tabs button.on{color:var(--fg);border-top-color:var(--chalk)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;min-width:0}
+.hero{background:linear-gradient(180deg,var(--panel2),var(--panel))}
+.eyebrow{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--chalk);margin:0 0 8px;font-weight:600}
+h2{font-family:var(--display);font-size:34px;font-weight:700;line-height:1.02;margin:0 0 8px;text-wrap:balance;text-transform:uppercase;letter-spacing:.01em}
+h3{font-family:var(--display);font-size:21px;font-weight:600;margin:0 0 10px;text-transform:uppercase;letter-spacing:.05em}
+p{margin:0 0 8px;max-width:68ch}
+.muted{color:var(--muted)}.good{color:var(--good)}.bad{color:var(--bad)}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.row.sp{margin-top:10px}
+.btn{background:var(--chalk);color:var(--ink);border:0;border-radius:8px;padding:9px 18px;font-family:var(--display);font-size:20px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;line-height:1.15}
+.btn.ghost{background:transparent;color:var(--fg);box-shadow:inset 0 0 0 1px var(--line)}
+.btn.ghost.sel{box-shadow:inset 0 0 0 2px var(--chalk)}
+.btn.sm{padding:6px 12px;font-size:16px}
+.btn:disabled{opacity:.4;cursor:default}
+.match{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+.tb{display:flex;align-items:center;gap:12px;flex:1;min-width:170px}
+.tb b{font-family:var(--display);font-size:27px;text-transform:uppercase;line-height:1;display:block}
+.tb span{color:var(--muted);font-size:13px}
+.vs{font-family:var(--display);color:var(--muted);font-size:19px;text-transform:uppercase;letter-spacing:.08em}
+.chips{display:flex;gap:6px;margin-top:5px}
+.chip{font-size:12px;background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:1px 7px;font-variant-numeric:tabular-nums;color:var(--fg)!important}
+.news{list-style:none;margin:0 0 4px;padding:0;display:flex;flex-direction:column;gap:7px}
+.news li{padding-left:12px;border-left:2px solid var(--line)}
+.news+.row{margin-top:14px}
+.pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:8px}
+.pick button{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 10px;text-align:left;min-width:0}
+.pick button:hover,.play:hover,.prow:hover{border-color:var(--muted)}
+.pick b{display:block;font-family:var(--display);font-size:19px;text-transform:uppercase;line-height:1.05}
+.pick small{color:var(--muted);font-size:12px}
+.scroll{overflow-x:auto}
+.tbl{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;white-space:nowrap}
+.tbl th{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:4px 8px;text-align:right}
+.tbl td{padding:7px 8px;border-top:1px solid var(--line);text-align:right}
+.tbl .l{text-align:left}
+.tbl .ovr,.prow .ovr{font-family:var(--display);font-size:19px;font-weight:700}
+.tbl tr.st td{background:var(--panel2)}
+.tbl tr.me td{background:var(--sel)}
+.tbl tr.div td{font-family:var(--display);font-size:15px;letter-spacing:.1em;text-transform:uppercase;color:var(--chalk);border-top:0;padding-top:12px}
+.tag{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--chalk);border:1px solid var(--line);border-radius:3px;padding:0 4px;margin-left:4px}
+.tr-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px}
+.plist{display:flex;flex-direction:column;gap:4px;max-height:330px;overflow-y:auto;padding-right:2px}
+.prow{display:grid;grid-template-columns:30px minmax(0,1fr) auto auto auto;gap:8px;align-items:center;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 8px;text-align:left;font-variant-numeric:tabular-nums;font-size:14px}
+.prow.on{border-color:var(--chalk);background:var(--sel)}
+.prow .pos{font-family:var(--display);font-weight:700;font-size:16px;color:var(--muted)}
+.prow .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.meter{flex:1;min-width:120px;max-width:260px;height:10px;background:var(--bg);border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.meter i{display:block;height:100%;background:var(--bad)}
+.meter.ok i{background:var(--good)}
+.tr-sum .row{margin-bottom:8px}
+
+#game{position:fixed;inset:0;z-index:50;background:var(--stage);display:flex;flex-direction:column;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)}
+#bug{display:flex;align-items:center;gap:10px;padding:6px 12px;background:var(--panel);border-bottom:1px solid var(--line);font-family:var(--display)}
+#bug .tm{display:flex;align-items:center;gap:7px;font-size:24px;font-weight:700;line-height:1}
+#bug .tm i{font-style:normal;min-width:1.3em;text-align:center;font-variant-numeric:tabular-nums;color:var(--chalk)}
+#bug .mid{flex:1;text-align:center;line-height:1.1;min-width:0}
+#bug .mid b{display:block;font-size:19px;font-variant-numeric:tabular-nums}
+#bug .mid span{font-size:15px;color:var(--muted);white-space:nowrap;letter-spacing:.03em}
+#stage{flex:1;min-height:0;position:relative;overflow:hidden}
+#cv{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#flash{position:absolute;left:50%;top:14%;transform:translateX(-50%);max-width:94%;text-align:center;font-family:var(--display);font-weight:700;font-size:clamp(24px,5vw,48px);line-height:1;text-transform:uppercase;letter-spacing:.03em;color:var(--glow);text-shadow:0 2px 0 rgba(0,0,0,.6),0 0 18px rgba(0,0,0,.55);pointer-events:none;opacity:0;transition:opacity .18s}
+#flash.on{opacity:1}
+#panel{background:var(--panel);border-top:1px solid var(--line);padding:10px 12px;max-height:46%;overflow-y:auto;min-height:58px}
+#panel .res{font-family:var(--display);font-size:22px;letter-spacing:.03em;text-transform:uppercase}
+.plays{display:grid;grid-template-columns:repeat(auto-fit,minmax(108px,1fr));gap:8px}
+.play{display:flex;flex-direction:column;gap:1px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 8px 7px;text-align:left;min-width:0}
+.play svg{width:100%;height:46px;display:block}
+.play b{font-family:var(--display);font-size:18px;letter-spacing:.03em;text-transform:uppercase;line-height:1.1}
+.play small{color:var(--muted);font-size:12px;line-height:1.2}
+.pl-los{stroke:var(--line);stroke-width:.5}
+.pl-rt{fill:none;stroke:var(--chalk);stroke-width:.9;stroke-linejoin:round;stroke-linecap:round}
+.pl-dot{fill:var(--fg)}
+.pl-ol{fill:var(--muted)}
+.kbd{display:inline-block;min-width:1.5em;text-align:center;font-family:var(--body);font-size:11px;font-weight:600;letter-spacing:0;border:1px solid currentColor;border-radius:4px;padding:0 4px;margin-right:6px;opacity:.7;vertical-align:2px;text-transform:none}
+.btn .kbd{margin:0 0 0 8px}
+.kick{position:relative;height:22px;background:var(--bg);border:1px solid var(--line);border-radius:6px;flex:1;min-width:160px}
+.kick .zone{position:absolute;top:0;bottom:0;left:50%;transform:translateX(-50%);background:var(--good);opacity:.6}
+.kick .mk{position:absolute;top:-4px;bottom:-4px;left:0;width:4px;margin-left:-2px;background:var(--chalk);border-radius:2px}
+.cardp h3{font-size:26px;margin-bottom:6px}
+.cardp .row{margin-top:10px}
+#panel.live{touch-action:none}
+.pad{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:84px;border:1px dashed var(--line);border-radius:10px;padding:12px}
+.tip{display:none;margin:10px 0 0}
+@media (max-width:520px){.uni span{font-size:12px;letter-spacing:0}.uni{padding:6px 0 5px}h2{font-size:28px}#bug{gap:6px;padding:6px 8px}#bug .tm{font-size:19px;gap:5px}#bug .mid b{font-size:16px}#bug .mid span{font-size:12px}#bug .btn{padding:4px 8px;font-size:14px}#bug .wide{display:none}#top h1{font-size:23px}}
+@media (orientation:portrait){#stage{flex:none;height:min(78vw,58%)}#panel{flex:1;max-height:none}.pad{min-height:140px}.tip{display:block}}
+@media (prefers-reduced-motion:reduce){#flash{transition:none}}
+
+input{font:inherit;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 10px;min-width:0}
+input:focus-visible{outline:2px solid var(--chalk);outline-offset:2px}
+#edName{flex:1;min-width:130px;max-width:260px}#edNum{width:76px}
+label{color:var(--muted);font-size:13px}
+.xf{display:inline-block;font-family:var(--display);font-weight:700;font-size:12px;line-height:1;color:var(--ink);background:var(--chalk);border-radius:3px;padding:2px 5px;margin-left:4px;vertical-align:1px}
+.edit{border-color:var(--chalk)}.edit .row{margin-bottom:10px}.edit .row:last-child{margin-bottom:0}.edit h3{margin:0}
+.tbl tr.pl{cursor:pointer}.tbl tr.pl:hover td{background:var(--panel2)}.tbl tr.cur td{background:var(--sel)}.tbl tr.out td{opacity:.6}
+.tbl tr.pl:focus-visible{outline:2px solid var(--chalk);outline-offset:-2px}
+.unis{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:16px;margin:10px 0 14px}
+.unicol h3{margin-bottom:6px}
+.unirow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.uni{display:flex;flex-direction:column;align-items:center;gap:4px;background:var(--mat);border:2px solid var(--line);border-radius:8px;padding:8px 2px 6px;min-width:0}
+.uni svg{width:44px;height:70px;max-width:100%}
+.uni span{font-family:var(--display);font-size:15px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.uni.on{border-color:var(--chalk);background:var(--mat2)}
+.set{margin:4px 0 12px}
+.prow.pk{border-style:dashed}.prow.pk .pos{color:var(--chalk)}
+.poss{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--chalk)}
+.dcalls{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.sp{margin-top:10px}
+@media (max-width:520px){.uni span{font-size:12px;letter-spacing:0}.uni svg{width:36px;height:57px}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="top"></header>
+  <main id="view"></main>
+  <nav id="tabs" hidden></nav>
+</div>
+<div id="game" hidden>
+  <div id="bug"></div>
+  <div id="stage"><canvas id="cv"></canvas><div id="flash" aria-live="polite"></div></div>
+  <div id="panel"></div>
+</div>
+
+<script>
+const REAL={"ARI":[["Gardner M","QB",72,15,0,30],["Carson B","QB",68,19,0,24],["Jeremiyah L","RB",82,4,0,21],["Tyler A","RB",81,22,0,26],["Mikey W","WR",83,14,0,26],["Kendrick B","WR",75,17,0,31],["Devin D","WR",74,81,0,29],["Reggie V","WR",69,82,0,25],["Trey M","TE",99,85,1,26],["Elijah H","TE",69,84,0,26],["Paris J","OL",87,70,0,25],["Hjalte F","OL",84,72,0,30],["Isaac S","OL",80,73,0,33],["Chase B","OL",75,57,0,22],["Jedrick W","OL",74,79,0,27],["Elijah W","OL",71,65,0,31],["Josh S","DL",85,10,0,29],["Walter N","DL",77,97,0,23],["Zaven C","DL",76,25,0,27],["Baron B","DL",73,5,0,27],["Jordan B","DL",73,52,0,24],["Mack W","LB",81,1,0,28],["Jack G","LB",73,50,0,28],["Cody S","LB",70,0,0,24],["Karson S","LB",66,43,0,23],["Will J","CB",77,2,0,23],["Kei'Trel C","CB",74,13,0,25],["Max M","CB",74,16,0,24],["Budda B","S",88,3,1,30],["Garrett W","S",77,21,0,25],["Andrew W","S",77,28,0,30],["Chad R","K",75,38,0,27]],"ATL":[["Mikey P","QB",76,9,0,26],["Tua T","QB",71,1,0,28],["Bijan R","RB",98,7,1,24],["Brian R","RB",78,15,0,27],["Drake L","WR",93,5,0,25],["Jahan D","WR",76,4,0,26],["Olamide Z","WR",73,14,0,29],["Zachariah B","WR",73,17,0,22],["Kyle P","TE",79,8,0,26],["Austin H","TE",74,81,0,32],["Chris L","OL",94,63,0,29],["Jake M","OL",87,70,0,34],["Ryan N","OL",85,64,0,29],["Matthew B","OL",80,65,0,26],["Jawaan T","OL",75,71,0,29],["Ethan O","OL",66,75,0,23],["Gervon D","DL",81,95,0,25],["Jalon W","DL",79,11,0,22],["James P","DL",79,27,0,23],["Brandon D","DL",76,54,0,25],["Samson E","DL",76,52,0,31],["Divine D","LB",80,0,0,28],["Kendal D","LB",73,53,0,23],["Christian H","LB",69,45,0,25],["JD B","LB",69,40,0,25],["AJ T","CB",88,24,0,28],["Avieon T","CB",75,12,0,21],["Mike H","CB",74,21,0,29],["Jessie B","S",95,3,1,29],["Xavier W","S",78,31,0,24],["Sydney B","S",73,29,0,26],["Nick F","K",83,6,0,42]],"BAL":[["Lamar J","QB",93,8,1,29],["Tyler H","QB",69,5,0,28],["Derrick H","RB",94,22,1,32],["Justice H","RB",77,43,0,29],["Zay F","WR",90,4,0,26],["Rashod B","WR",77,7,0,27],["Ja'Kobi L","WR",72,6,0,22],["Elijah S","WR",71,13,0,23],["Mark A","TE",86,89,0,31],["Durham S","TE",70,80,0,31],["Ronnie S","OL",86,79,0,32],["John S","OL",78,74,0,29],["Roger R","OL",78,70,0,24],["Olaivavega I","OL",78,71,0,22],["Cam J","OL",75,64,0,27],["Andrew V","OL",71,72,0,27],["Justin M","DL",90,92,0,29],["Trey H","DL",88,91,0,32],["Calais C","DL",82,93,0,40],["Travis J","DL",79,98,0,27],["Mike G","DL",76,15,0,23],["Roquan S","LB",92,0,1,29],["Trenton S","LB",79,32,0,25],["Teddye B","LB",74,40,0,24],["Jay H","LB",61,49,0,24],["Marlon H","CB",85,44,0,30],["Nate W","CB",84,2,0,23],["Chidobe A","CB",83,3,0,31],["Kyle H","S",94,14,0,25],["Malaki S","S",78,24,0,23],["Jaylinn H","S",77,21,0,29],["Tyler L","K",79,33,0,25]],"BUF":[["Josh A","QB",99,17,1,30],["Kyle A","QB",60,11,0,30],["James C","RB",92,4,0,27],["Ty J","RB",76,26,0,29],["DJ M","WR",84,2,0,29],["Khalil S","WR",83,10,0,26],["Keon C","WR",77,0,0,23],["Josh P","WR",75,5,0,27],["Dalton K","TE",83,86,0,27],["Dawson K","TE",76,88,0,30],["Dion D","OL",89,73,0,32],["Spencer B","OL",85,79,0,28],["Connor M","OL",81,66,0,29],["Austin C","OL",76,63,0,31],["O'Cyrus T","OL",75,64,0,26],["Lloyd C","OL",75,53,0,29],["Greg R","DL",90,15,0,26],["Ed O","DL",82,91,0,29],["Bradley C","DL",78,9,0,30],["Deone W","DL",77,96,0,22],["TJ P","DL",77,99,0,22],["Terrel B","LB",85,8,0,27],["Dorian W","LB",74,42,0,25],["Kaleb E","LB",71,52,0,23],["Joe A","LB",69,44,0,26],["Christian B","CB",80,47,0,26],["Dee A","CB",76,23,0,29],["Maxwell H","CB",75,1,0,23],["Cole B","S",79,24,0,24],["Damar H","S",73,3,0,28],["Jordan H","S",70,37,0,23],["Tyler B","K",74,16,0,29]],"CAR":[["Bryce Y","QB",82,9,0,25],["Kenny P","QB",66,12,0,28],["Chuba H","RB",85,30,0,27],["Jonathon B","RB",75,25,0,23],["Tetairoa M","WR",87,4,0,23],["Jalen C","WR",78,18,0,25],["Xavier L","WR",74,17,0,25],["John M","WR",73,13,0,26],["Tommy T","TE",73,82,0,26],["Ja'Tavion S","TE",69,0,0,23],["Damien L","OL",87,68,0,29],["Taylor M","OL",84,72,0,32],["Robert H","OL",81,50,0,30],["Ikem E","OL",80,79,0,26],["Rasheed W","OL",78,63,0,26],["Brady C","OL",76,70,0,29],["Derrick B","DL",96,95,0,28],["Jaelan P","DL",82,5,0,27],["Nic S","DL",75,11,0,22],["Bobby B","DL",74,97,0,26],["Lee H","DL",74,92,0,23],["Devin L","LB",88,55,0,28],["Tyrel D","LB",77,33,0,28],["Jackson K","LB",65,46,0,24],["Bam M","LB",63,54,0,24],["Jaycee H","CB",87,8,0,27],["Mike J","CB",81,2,0,29],["Chau S","CB",73,26,0,24],["Trevon M","S",81,7,0,27],["Nick S","S",75,21,0,31],["Isaiah S","S",72,27,0,28],["Ryan F","K",76,10,0,26]],"CHI":[["Caleb W","QB",95,18,1,24],["Case K","QB",65,11,0,38],["D'Andre S","RB",89,4,0,27],["Kyle M","RB",79,25,0,24],["Luther B","WR",83,10,0,23],["Rome O","WR",82,15,0,24],["Kalif R","WR",76,14,0,32],["Zavion T","WR",72,13,0,23],["Colston L","TE",82,84,0,22],["Cole K","TE",78,85,0,27],["Joe T","OL",96,62,0,34],["Darnell W","OL",91,58,0,25],["Jonah J","OL",84,73,0,29],["Garrett B","OL",76,67,0,31],["Braxton J","OL",74,70,0,27],["Ozzy T","OL",73,75,0,25],["Jeffery S","DL",97,99,0,29],["Grady J","DL",81,50,0,33],["Montez S","DL",81,98,0,30],["Dayo O","DL",73,55,0,27],["Austin B","DL",73,94,0,23],["Devin B","LB",86,12,0,28],["TJ E","LB",82,53,0,30],["D'Marco J","LB",71,48,0,28],["Jack S","LB",71,57,0,26],["Jaylon J","CB",86,1,0,27],["Kyler G","CB",83,6,0,26],["Clark P","CB",75,20,0,24],["Coby B","S",77,2,0,27],["Dillon T","S",77,31,0,22],["Cam L","S",75,21,0,29],["Cairo S","K",78,8,0,34]],"CIN":[["Joey B","QB",98,9,1,29],["Joe F","QB",71,16,0,41],["Chase B","RB",84,30,0,26],["Samaje P","RB",76,34,0,31],["Ja'Marr C","WR",99,1,1,26],["Tee H","WR",89,5,0,27],["Andrei I","WR",73,80,0,26],["Colbie Y","WR",70,86,0,22],["Mike G","TE",80,88,0,31],["Drew S","TE",68,89,0,30],["Amarius M","OL",78,71,0,24],["Dalton R","OL",77,66,0,31],["Ted K","OL",76,64,0,33],["Orlando B","OL",75,75,0,30],["Dylan F","OL",72,63,0,23],["Connor L","OL",69,65,0,22],["Dexter L","DL",93,97,0,29],["Jonathan A","DL",87,93,0,31],["Boye M","DL",81,53,0,27],["Cashius H","DL",77,55,0,23],["BJ H","DL",76,92,0,31],["Demetrius K","LB",75,44,0,26],["Barrett C","LB",71,49,0,24],["Oren B","LB",69,42,0,31],["Jack K","LB",67,45,0,25],["DJ T","CB",84,0,0,25],["Daxton H","CB",78,23,0,26],["Josh N","CB",71,28,0,25],["Jordan B","S",79,27,0,25],["Bryan C","S",79,6,0,27],["Kyle D","S",76,29,0,30],["Evan M","K",82,2,0,27]],"CLE":[["Deshaun W","QB",74,4,0,31],["Shedeur S","QB",69,2,0,24],["Quinshon J","RB",80,10,0,23],["Dylan S","RB",75,22,0,22],["Jerry J","WR",79,3,0,27],["KC C","WR",77,1,0,22],["Denzel B","WR",76,12,0,22],["Tylan W","WR",71,16,0,27],["Harold F","TE",81,44,0,22],["Joe R","TE",66,18,0,24],["Elgton J","OL",82,74,0,30],["Spencer F","OL",81,55,0,21],["Tytus H","OL",80,71,0,30],["Zion J","OL",78,77,0,27],["Austin B","OL",76,58,0,23],["Teven J","OL",75,78,0,28],["Jared V","DL",86,8,0,25],["Mason G","DL",82,94,0,23],["Maliek C","DL",78,96,0,31],["Isaiah M","DL",73,57,0,25],["Sam W","DL",73,54,0,27],["Carson S","LB",84,49,0,23],["Quincy W","LB",84,5,0,30],["Jeremiah O","LB",81,6,0,27],["Justin J","LB",67,17,0,24],["Denzel W","CB",95,21,0,29],["Tyson C","CB",79,7,0,26],["Mekhi B","CB",76,29,0,27],["Grant D","S",82,9,0,28],["Emmanuel M","S",76,28,0,22],["Ronnie H","S",76,33,0,25],["Andre S","K",77,25,0,27]],"DAL":[["Dak P","QB",91,4,1,33],["Sam H","QB",65,16,0,26],["Javonte W","RB",85,33,0,26],["Malik D","RB",73,20,0,28],["CeeDee L","WR",96,88,1,27],["George P","WR",88,3,0,25],["Ryan F","WR",77,19,0,27],["KaVontae T","WR",76,9,0,30],["Jake F","TE",77,87,0,27],["Luke S","TE",69,86,0,28],["Tyler S","OL",90,73,0,25],["Tyler B","OL",85,52,0,22],["Cooper B","OL",79,56,0,25],["Tyler G","OL",79,60,0,25],["Terence S","OL",74,78,0,29],["Broderick J","OL",71,77,0,25],["Quinnen W","DL",92,92,0,28],["Kenny C","DL",78,97,0,31],["Malachi L","DL",78,57,0,23],["Donovan E","DL",77,6,0,23],["Rashan G","DL",77,7,0,28],["DeMarvion O","LB",75,0,0,26],["Jaishawn B","LB",74,55,0,23],["Dee W","LB",72,53,0,26],["Shemar J","LB",70,50,0,22],["Joey P","CB",87,25,0,26],["Decobie D","CB",82,2,0,28],["DaRon B","CB",76,26,0,27],["Jalen T","S",84,34,0,28],["Caleb D","S",81,13,0,21],["Malik H","S",78,24,0,30],["Brandon A","K",83,17,0,31]],"DEN":[["Bo N","QB",81,10,0,26],["Jarrett S","QB",64,8,0,30],["JK D","RB",79,27,0,27],["RJ H","RB",79,12,0,25],["Courtland S","WR",85,14,0,31],["Jaylen W","WR",85,17,0,28],["Troy F","WR",78,11,0,23],["Marvin M","WR",77,19,0,24],["Evan E","TE",78,1,0,32],["Adam T","TE",71,82,0,29],["Garett B","OL",96,72,0,34],["Quinn M","OL",96,77,0,28],["Mike M","OL",82,69,0,31],["Luke W","OL",78,60,0,29],["Ben P","OL",74,74,0,30],["Kage C","OL",71,78,0,22],["Nik B","DL",92,15,0,27],["Zach A","DL",90,99,0,29],["Jonathon C","DL",84,0,0,28],["DJ J","DL",76,93,0,31],["Malcolm R","DL",76,97,0,28],["Alex S","LB",87,49,0,33],["Justin S","LB",75,40,0,30],["Jordan T","LB",64,55,0,25],["Karene R","LB",62,47,0,25],["Pat S","CB",97,2,1,26],["Ja'Quan M","CB",79,29,0,26],["Riley M","CB",79,21,0,26],["Talanoa H","S",89,9,0,27],["Brandon J","S",84,22,0,28],["JL S","S",66,34,0,25],["Wil L","K",78,3,0,32]],"DET":[["Jared G","QB",87,16,0,32],["Jahmyr G","RB",97,0,1,24],["Isiah P","RB",75,10,0,27],["Amon-Ra S","WR",95,14,1,27],["Jameson W","WR",86,1,0,25],["Isaac T","WR",74,18,0,24],["Kendrick L","WR",70,88,0,23],["Sam L","TE",90,87,0,25],["Tyler C","TE",72,83,0,31],["Penei S","OL",98,58,0,26],["Tate R","OL",79,69,0,25],["Blake M","OL",77,76,0,22],["Christian M","OL",75,73,0,26],["Cade M","OL",74,64,0,27],["Ben B","OL",72,78,0,28],["Aidan H","DL",94,97,1,26],["Alim M","DL",87,54,0,26],["Tyleik W","DL",78,91,0,23],["Derrick M","DL",77,8,0,23],["DJ W","DL",76,98,0,29],["Jack C","LB",86,46,0,26],["Derrick B","LB",75,55,0,27],["Malcolm R","LB",74,44,0,27],["Damone C","LB",71,11,0,26],["DJ R","CB",81,4,0,30],["Roger M","CB",76,21,0,26],["Ennis R","CB",72,2,0,24],["Brian B","S",91,32,0,25],["Kerby J","S",88,31,0,26],["Chuck C","S",79,36,0,31],["Jake B","K",76,39,0,27]],"GB":[["Jordan L","QB",86,10,0,28],["Tyrod T","QB",69,6,0,37],["Josh J","RB",88,8,0,28],["Kaleb J","RB",74,26,0,23],["Christian W","WR",86,9,0,27],["Jayden R","WR",80,11,0,26],["Matthew G","WR",80,0,0,23],["Bo M","WR",72,16,0,27],["Tucker K","TE",87,85,0,26],["Luke M","TE",70,88,0,26],["Zach T","OL",87,50,0,27],["Jordan M","OL",75,77,0,25],["Aaron B","OL",73,65,0,29],["Anthony B","OL",71,71,0,25],["Sean R","OL",70,75,0,26],["Jager B","OL",67,52,0,23],["Micah P","DL",98,1,1,27],["Lukas V","DL",83,90,0,25],["Javon H","DL",80,98,0,33],["Devonte W","DL",78,95,0,28],["Dani D","DL",77,51,0,22],["Edgerrin C","LB",80,56,0,25],["Zaire F","LB",78,44,0,30],["Isaiah M","LB",78,58,0,27],["Ty'Ron H","LB",67,59,0,25],["Keisean N","CB",78,25,0,29],["Carrington V","CB",77,24,0,25],["Xavier M","S",92,29,1,27],["Evan W","S",85,33,0,25],["Javon B","S",78,7,0,24],["Trey S","K",74,28,0,23]],"HOU":[["CJ S","QB",85,7,0,25],["Davis M","QB",66,10,0,28],["David M","RB",80,32,0,29],["Woody M","RB",80,4,0,25],["Nico C","WR",90,12,1,27],["Tank D","WR",80,1,0,27],["Jayden H","WR",77,81,0,23],["Kayshon B","WR",77,14,0,24],["Dalton S","TE",88,86,0,30],["Foster M","TE",72,87,0,29],["Braden S","OL",82,71,0,30],["Trent B","OL",79,77,0,33],["Ed I","OL",77,69,0,27],["Keylan R","OL",74,66,0,23],["Wyatt T","OL",74,75,0,31],["Aireontae E","OL",73,79,0,24],["Will A","DL",95,51,0,25],["Danielle H","DL",90,55,0,32],["Sheldon R","DL",80,98,0,32],["Tommy T","DL",77,72,0,27],["Kayden M","DL",74,93,0,21],["Azeez A","LB",83,0,0,29],["Henry T","LB",75,39,0,25],["EJ S","LB",75,45,0,31],["Wade W","LB",68,30,0,23],["Derek S","CB",92,24,1,25],["Jalen P","CB",86,5,0,27],["Kamari L","CB",85,3,0,23],["Calen B","S",78,2,0,23],["Reed B","S",78,6,0,27],["Kamari R","S",72,27,0,22],["Ka'imi F","K",81,15,0,32]],"IND":[["Danny J","QB",72,17,0,29],["Anthony R","QB",68,5,0,24],["Jonathan T","RB",93,28,1,27],["DJ G","RB",70,21,0,23],["Alec P","WR",84,14,0,26],["Nick W","WR",73,12,0,29],["Ashton D","WR",72,16,0,29],["Anthony G","WR",69,6,0,25],["Tyler W","TE",82,84,0,24],["Mo A","TE",71,81,0,33],["Bernhard R","OL",86,79,0,29],["Tanor B","OL",83,60,0,24],["Matt G","OL",78,71,0,25],["Jalen F","OL",70,62,0,23],["Jalen T","OL",70,75,0,24],["Sedrick V","OL",66,63,0,25],["Grover S","DL",83,90,0,33],["Laiatu L","DL",80,97,0,25],["Adetomiwa A","DL",75,95,0,25],["Arden K","DL",75,98,0,30],["JT T","DL",74,91,0,23],["Akeem D","LB",75,51,0,29],["CJ A","LB",73,53,0,21],["Jaylon C","LB",69,57,0,25],["Austin A","LB",68,58,0,26],["Sauce G","CB",88,1,0,26],["Charvarius W","CB",86,7,0,30],["Cam T","CB",80,29,0,27],["Camryn B","S",83,0,0,28],["AJ H","S",74,25,0,22],["Jonathan O","S",71,38,0,31],["Spencer S","K",84,3,0,27]],"JAX":[["Trevor L","QB",87,16,0,27],["Quinn E","QB",63,10,0,23],["Bhayshul T","RB",82,33,0,24],["Chris R","RB",73,24,0,26],["Parker W","WR",84,11,0,24],["Jakobi M","WR",82,3,0,30],["Brian T","WR",79,7,0,24],["Josh C","WR",68,19,0,23],["Brenton S","TE",79,85,0,26],["Nate B","TE",67,87,0,24],["Ezra C","OL",80,76,0,28],["Anton H","OL",79,77,0,24],["Walker L","OL",78,72,0,27],["Robert H","OL",74,73,0,28],["Emmanuel P","OL",73,75,0,23],["Patrick M","OL",73,65,0,29],["Josh H","DL",89,41,1,29],["Travon W","DL",80,44,0,26],["Arik A","DL",76,91,0,33],["Davon H","DL",75,52,0,29],["Wesley W","DL",73,90,0,23],["Foyesade O","LB",87,23,0,31],["Dennis G","LB",74,47,0,32],["Ventrell M","LB",73,51,0,27],["Parker H","LB",66,53,0,23],["Travis H","CB",85,12,0,23],["Jourdan L","CB",82,2,0,31],["Jarrian J","CB",77,4,0,25],["Antonio J","S",81,6,0,25],["Eric M","S",74,29,0,32],["Caleb R","S",73,27,0,23],["Cam L","K",80,39,0,23]],"KC":[["Patty M","QB",93,15,1,31],["Justin F","QB",70,6,0,27],["Kenneth W","RB",95,9,0,26],["Brashard S","RB",74,24,0,23],["Rashee R","WR",85,4,0,26],["Xavier W","WR",79,1,0,23],["Tyquan T","WR",76,2,0,26],["Jalen R","WR",71,11,0,23],["Travis K","TE",93,87,0,37],["Noah G","TE",73,83,0,27],["Creed H","OL",96,52,0,27],["Trey S","OL",93,65,0,27],["Josh S","OL",81,71,0,23],["Kingsley S","OL",76,76,0,23],["Jaylon M","OL",72,77,0,28],["Kahlil B","OL",68,70,0,24],["Chris J","DL",94,95,1,32],["George K","DL",83,56,0,25],["Mason T","DL",77,51,0,22],["Peter W","DL",75,99,0,21],["Felix A","DL",74,91,0,24],["Drue T","LB",89,23,0,31],["Nick B","LB",84,32,0,26],["Jeffrey B","LB",67,31,0,23],["Cooper M","LB",64,44,0,24],["Mansoor D","CB",83,5,0,22],["Nohl W","CB",80,20,0,24],["L'Jarius S","CB",79,38,0,29],["Alohi G","S",80,17,0,29],["Chamarri C","S",76,27,0,26],["Jaden H","S",76,21,0,24],["Harrison B","K",79,7,0,31]],"LV":[["Fernando M","QB",73,15,0,23],["Aidan O","QB",67,12,0,28],["Ashton J","RB",83,2,0,22],["Mike W","RB",73,4,0,23],["Tre T","WR",78,1,0,25],["Jalen N","WR",76,9,0,27],["Jack B","WR",73,18,0,23],["Cody W","WR",69,82,0,27],["Brock B","TE",96,89,1,23],["Michael M","TE",80,87,0,25],["Kolton M","OL",93,74,0,31],["Tyler L","OL",88,65,0,26],["Jackson P","OL",78,58,0,23],["Delmar G","OL",72,71,0,24],["Trey Z","OL",72,66,0,23],["Charles G","OL",70,60,0,24],["Maxx C","DL",97,98,1,29],["Kwity P","DL",78,95,0,27],["Malcolm K","DL",78,51,0,28],["Keyron C","DL",75,42,0,23],["Adam B","DL",73,69,0,32],["Quay W","LB",81,7,0,26],["Nakobe D","LB",79,17,0,25],["Tommy E","LB",69,44,0,25],["Segun O","LB",65,50,0,27],["Taron J","CB",84,3,0,30],["Eric S","CB",78,5,0,27],["Darien P","CB",74,26,0,25],["Jeremy C","S",82,11,0,28],["Treydan S","S",76,31,0,24],["Isaiah P","S",71,20,0,27],["Matt G","K",75,14,0,32]],"LAC":[["Justin H","QB",77,10,0,28],["Trey L","QB",64,5,0,26],["Omarion H","RB",81,8,0,23],["Kimani V","RB",77,28,0,25],["Ladd M","WR",81,15,0,24],["Quentin J","WR",78,1,0,25],["Tre H","WR",73,9,0,24],["Brenen T","WR",72,89,0,22],["David N","TE",77,83,0,30],["Oronde G","TE",75,86,0,23],["Rashawn S","OL",91,70,0,27],["Joe A","OL",86,76,0,23],["Tyler B","OL",80,63,0,28],["Jake S","OL",73,66,0,23],["Cole S","OL",72,69,0,28],["Trevor P","OL",71,75,0,27],["Khalil M","DL",86,52,0,35],["Akheem M","DL",80,90,0,25],["Tuli T","DL",79,45,0,24],["Teair T","DL",77,93,0,29],["Dalvin T","DL",75,94,0,32],["Daiyan H","LB",82,57,0,26],["Denzel P","LB",76,6,0,33],["Del'Shawn P","LB",72,53,0,29],["Troy D","LB",71,43,0,29],["Donte J","CB",82,26,0,30],["Tarheeb S","CB",81,4,0,24],["Cam H","CB",74,20,0,25],["Derwin J","S",93,3,1,30],["Tony J","S",82,23,0,34],["Elijah M","S",79,2,0,27],["Cameron D","K",80,11,0,26]],"LAR":[["Matty S","QB",97,9,1,38],["Ty S","QB",71,15,0,23],["Kyren W","RB",90,23,0,26],["Blake C","RB",81,24,0,25],["Puka N","WR",98,12,1,25],["Davante A","WR",91,17,0,33],["Tutu A","WR",75,8,0,26],["Jordan W","WR",72,88,0,25],["Tyler H","TE",76,89,0,33],["Colby P","TE",73,84,0,27],["Kevin D","OL",89,69,0,29],["Alaric J","OL",85,77,0,28],["Steve A","OL",82,73,0,26],["Coleman S","OL",81,65,0,31],["Warren M","OL",73,71,0,25],["Beaux L","OL",71,50,0,25],["Myles G","DL",99,95,1,30],["Aaron D","DL",95,99,0,35],["Byron Y","DL",85,0,0,28],["Kobie T","DL",85,91,0,27],["Poona F","DL",83,97,0,30],["Nate L","LB",83,53,0,27],["Omar S","LB",78,48,0,25],["Shaun D","LB",69,56,0,24],["Grant S","LB",64,44,0,27],["Trent M","CB",96,22,0,26],["Jaylen W","CB",81,35,0,27],["Emmanuel F","CB",75,1,0,25],["Quentin L","S",84,37,0,27],["Kamren C","S",83,3,0,27],["Kamren K","S",79,5,0,23],["Blake G","K",73,19,0,27]],"MIA":[["Malik Wi","QB",72,2,0,27],["Kyle M","QB",65,14,0,24],["De'Von A","RB",86,28,0,25],["Ollie G","RB",78,0,0,22],["Caleb D","WR",74,7,0,22],["Jalen T","WR",73,1,0,27],["Malik Wa","WR",73,6,0,25],["Chris B","WR",71,18,0,22],["Greg D","TE",72,85,0,26],["Justin J","TE",68,80,0,22],["Aaron B","OL",90,55,0,29],["Patrick P","OL",81,52,0,25],["Kadyn P","OL",77,74,0,21],["Austin J","OL",73,73,0,27],["Christian H","OL",71,64,0,26],["Caedan W","OL",68,77,0,26],["Zach S","DL",83,92,0,31],["Chop R","DL",78,44,0,23],["Josh U","DL",76,9,0,28],["Kenneth G","DL",75,78,0,22],["Trey M","DL",72,17,0,23],["Jordyn B","LB",87,20,0,29],["Jacob R","LB",80,10,0,23],["Willie G","LB",72,40,0,28],["Ronnie H","LB",71,56,0,29],["Chris J","CB",77,3,0,22],["Darrell B","CB",74,22,0,28],["Julius B","CB",73,8,0,26],["Michael T","S",72,16,0,23],["Kyle L","S",71,19,0,22],["Dante T","S",71,11,0,23],["Zane G","K",74,31,0,31]],"MIN":[["Kirk C","QB",77,8,0,38],["Kyler M","QB",76,1,0,29],["Aaron J","RB",83,33,0,32],["Jordan M","RB",80,27,0,27],["Justin J","WR",97,18,1,27],["Jordan A","WR",83,3,0,24],["Jauan J","WR",81,14,0,29],["Tai F","WR",71,13,0,23],["TJ H","TE",84,87,0,29],["Josh O","TE",73,84,0,29],["Christian D","OL",90,71,0,27],["Brian O","OL",88,75,0,31],["Will F","OL",77,76,0,28],["Donovan J","OL",76,74,0,24],["Blake B","OL",72,64,0,29],["Caleb T","OL",72,78,0,23],["Andrew V","DL",85,43,0,31],["Jalen R","DL",84,61,0,27],["Dallas T","DL",83,15,0,23],["Caleb B","DL",75,95,0,23],["Levi R","DL",74,50,0,25],["Blake C","LB",89,51,0,30],["Eric W","LB",78,55,0,32],["Ivan P","LB",76,0,0,25],["Jake G","LB",74,41,0,23],["Byron M","CB",89,7,0,28],["Isaiah R","CB",87,2,0,28],["James P","CB",77,23,0,30],["Josh M","S",82,44,0,28],["Jakobe T","S",73,6,0,23],["Jay W","S",71,24,0,26],["Will R","K",84,16,0,25]],"NE":[["Drake M","QB",89,10,1,24],["Tommy D","QB",61,16,0,28],["Rhamondre S","RB",84,38,0,28],["TreVeyon H","RB",80,32,0,24],["AJ B","WR",86,1,0,29],["Demario D","WR",79,3,0,25],["Romeo D","WR",79,87,0,26],["Mack H","WR",77,13,0,33],["Hunter H","TE",85,85,0,31],["Eli R","TE",71,82,0,23],["Michael O","OL",86,71,0,28],["Alijah V","OL",83,75,0,27],["Morgan M","OL",82,76,0,35],["Will C","OL",82,66,0,22],["Caleb L","OL",76,74,0,21],["Matt P","OL",74,65,0,31],["Milton W","DL",86,97,0,27],["Christian B","DL",82,90,0,27],["Harold L","DL",81,2,0,30],["Gabe J","DL",79,50,0,22],["Dre'Mont J","DL",77,5,0,29],["Robert S","LB",83,14,0,30],["Christian E","LB",82,53,0,27],["Darius M","LB",69,54,0,25],["Namdi O","LB",67,48,0,24],["Christian G","CB",94,0,1,24],["Carlton D","CB",85,7,0,29],["Marcus J","CB",80,25,0,27],["Kevin B","S",85,31,0,33],["Craig W","S",81,4,0,25],["Dell P","S",69,24,0,25],["Andres B","K",74,8,0,23]],"NO":[["Tyler S","QB",81,6,0,27],["Spencer R","QB",69,2,0,25],["Travis E","RB",84,3,0,27],["Alvin K","RB",79,41,0,31],["Chris O","WR",89,12,0,26],["Devaughn V","WR",76,14,0,28],["Jordyn T","WR",76,0,0,22],["Bryce L","WR",70,18,0,23],["Juwan J","TE",80,83,0,30],["Noah F","TE",74,87,0,28],["Erik M","OL",87,78,0,29],["Kelvin B","OL",78,71,0,22],["David E","OL",77,76,0,29],["Cesar R","OL",76,51,0,27],["Taliese F","OL",76,75,0,24],["Dillon R","OL",72,77,0,28],["Chase Y","DL",88,99,0,27],["Cameron J","DL",79,94,0,37],["Carl G","DL",79,96,0,29],["Davon G","DL",76,92,0,31],["Anfernee J","DL",75,33,0,29],["Kaden E","LB",83,55,0,31],["Pete W","LB",75,20,0,27],["Danny S","LB",71,28,0,23],["Jaylan F","LB",67,53,0,25],["Martin E","CB",78,22,0,26],["Kool-Aid M","CB",76,1,0,23],["Quincy R","CB",73,29,0,25],["Justin R","S",81,21,0,29],["Jonas S","S",76,7,0,24],["Julian B","S",76,23,0,28],["Charlie S","K",73,39,0,25]],"NYG":[["Jaxson D","QB",78,6,0,23],["JJ M","QB",73,18,0,23],["Cam S","RB",83,44,0,24],["Tyrone T","RB",78,29,0,26],["Malik N","WR",88,1,0,23],["Darnell M","WR",76,17,0,28],["Calvin A","WR",75,82,0,27],["Malachi F","WR",74,88,0,23],["Isaiah L","TE",83,9,0,26],["Theo J","TE",77,84,0,25],["Andrew T","OL",95,78,0,27],["Jermaine E","OL",83,72,0,31],["Francis M","OL",79,65,0,21],["Jon R","OL",75,76,0,29],["Aaron S","OL",69,64,0,32],["JC D","OL",67,74,0,24],["Brian B","DL",88,0,0,28],["Abdul C","DL",84,3,0,23],["DJ R","DL",84,98,0,32],["Kayvon T","DL",78,5,0,25],["Shelby H","DL",77,93,0,35],["Arvell R","LB",84,52,0,21],["Tremaine E","LB",82,49,0,28],["Micah M","LB",75,41,0,26],["Malik H","LB",73,54,0,28],["Deonte B","CB",82,2,0,25],["Greg N","CB",80,20,0,26],["Andru P","CB",79,22,0,24],["Jevon H","S",87,8,0,26],["Ar'Darius W","S",77,24,0,27],["Tyler N","S",77,27,0,25],["Dominic Z","K",75,34,0,23]],"NYJ":[["Geno S","QB",75,7,0,36],["Cade K","QB",67,10,0,23],["Breece H","RB",86,20,0,25],["Braelon A","RB",79,0,0,22],["Garrett W","WR",87,5,0,26],["Adonai M","WR",77,15,0,24],["Omar C","WR",77,11,0,22],["Tim P","WR",74,17,0,32],["Kenyon S","TE",76,16,0,21],["Mason T","TE",75,85,0,22],["Armand M","OL",83,70,0,22],["Joe T","OL",83,66,0,25],["Dylan P","OL",79,64,0,27],["Olu F","OL",76,74,0,23],["Jordan M","OL",73,67,0,28],["Josh M","OL",72,71,0,28],["David B","DL",81,31,0,23],["T'Vondre S","DL",79,99,0,25],["Will M","DL",78,9,0,27],["David O","DL",77,93,0,34],["Harrison P","DL",77,97,0,30],["Demario D","LB",90,56,1,37],["Jamien S","LB",79,44,0,26],["Trevin W","LB",74,49,0,23],["Francisco M","LB",66,51,0,23],["Brandon S","CB",77,21,0,28],["Jarvis B","CB",76,2,0,25],["Azareye'h T","CB",75,1,0,22],["Minkah F","S",90,29,0,30],["Dane B","S",78,6,0,25],["Andre C","S",77,8,0,26],["Jason S","K",76,19,0,31]],"PHI":[["Jalen H","QB",79,1,1,28],["Joe M","QB",70,14,0,26],["Saquon B","RB",89,26,1,29],["Tank B","RB",77,8,0,25],["DeVonta S","WR",92,6,0,28],["Dontayvion W","WR",78,13,0,25],["Makai L","WR",77,9,0,22],["Marquise B","WR",75,0,0,29],["Dallas G","TE",89,88,0,31],["Eli S","TE",72,87,0,23],["Jordan M","OL",90,68,0,29],["Landon D","OL",82,69,0,28],["Tyler S","OL",74,56,0,26],["Markel B","OL",72,72,0,23],["Micah M","OL",68,76,0,24],["Drew K","OL",65,66,0,24],["Jalen C","DL",86,98,0,25],["Jonathan G","DL",84,52,0,29],["Nolan S","DL",82,3,0,25],["Moro O","DL",77,97,0,25],["Arnold E","DL",76,17,0,27],["Zack B","LB",93,53,0,30],["Jihaad C","LB",79,11,0,22],["Jeremiah T","LB",71,54,0,24],["Smael M","LB",69,42,0,23],["Quinyon M","CB",90,27,0,25],["Cooper D","CB",84,33,0,23],["Tariq W","CB",80,2,0,27],["Marcus E","S",75,29,0,30],["Michael C","S",74,35,0,27],["Andrew M","S",74,24,0,24],["Jake E","K",80,4,0,31]],"PIT":[["Aaron R","QB",80,8,0,42],["Drew A","QB",69,16,0,22],["Jaylen W","RB",87,30,0,28],["Rico D","RB",81,13,0,28],["DK M","WR",82,4,0,28],["Michael P","WR",81,11,0,29],["Germie B","WR",75,17,0,22],["Roman W","WR",72,14,0,25],["Pat F","TE",79,88,0,28],["Darnell W","TE",78,80,0,25],["Zach F","OL",89,54,0,25],["Mason M","OL",81,66,0,26],["Troy F","OL",76,76,0,25],["Max I","OL",75,71,0,23],["Gennings D","OL",72,73,0,23],["Brock H","OL",69,67,0,27],["TJ W","DL",96,90,1,32],["Cam H","DL",95,97,1,37],["Alex H","DL",87,56,0,29],["Derrick H","DL",78,99,0,23],["Nick H","DL",78,51,0,25],["Patrick Q","LB",79,6,0,27],["Payton W","LB",79,41,0,26],["Cole H","LB",75,55,0,30],["Carson B","LB",64,44,0,24],["Jamel D","CB",88,35,0,30],["Sean M","CB",77,27,0,29],["Brandin E","CB",75,26,0,29],["Jalen R","S",92,5,1,32],["DeShon E","S",80,25,0,29],["Jaquan B","S",80,3,0,27],["Chris B","K",85,9,0,35]],"SF":[["Brock P","QB",92,13,0,26],["Mac J","QB",75,10,0,28],["Christian M","RB",97,23,1,30],["Kaelon B","RB",74,26,0,24],["Mike E","WR",91,5,1,33],["Ricky P","WR",80,1,0,26],["Christian K","WR",78,3,0,30],["De'Zhaun S","WR",76,7,0,23],["George K","TE",97,85,1,33],["Jake T","TE",72,88,0,27],["Trent W","OL",97,71,0,38],["Colton M","OL",85,68,0,30],["Dominick P","OL",83,77,0,26],["Jake B","OL",78,64,0,34],["Jarrett P","OL",70,58,0,27],["Connor C","OL",69,75,0,23],["Nick B","DL",92,97,1,29],["DeForest B","DL",91,99,0,32],["Mykel W","DL",77,98,0,22],["Osa O","DL",77,92,0,28],["Keion W","DL",73,56,0,27],["Fred W","LB",98,54,1,30],["Dre G","LB",85,57,0,29],["Nick M","LB",71,45,0,24],["Tatum B","LB",70,48,0,25],["Deommodore L","CB",83,2,0,27],["Renardo G","CB",78,0,0,26],["Nate H","CB",76,22,0,27],["Malik M","S",78,6,0,24],["Marques S","S",76,36,0,24],["Ji'Ayir B","S",74,27,0,26],["Eddy P","K",77,18,0,31]],"SEA":[["Sammy D","QB",84,14,0,29],["Drew L","QB",68,2,0,30],["Zach C","RB",82,26,0,25],["Emanuel W","RB",76,23,0,27],["Jax S","WR",99,11,1,24],["Cooper K","WR",82,10,0,33],["Rashid S","WR",78,22,0,28],["Tory H","WR",75,15,0,24],["AJ B","TE",75,88,0,24],["Elijah A","TE",71,18,0,23],["Quenton N","OL",95,53,0,30],["Charles C","OL",85,67,0,26],["Abraham L","OL",84,72,0,28],["Grey Z","OL",79,76,0,24],["Jalen S","OL",73,61,0,27],["Anthony B","OL",72,75,0,25],["Leonard W","DL",89,99,0,32],["DeMarcus L","DL",87,0,0,34],["Byron M","DL",85,91,0,24],["Jarran R","DL",78,90,0,34],["Uchenna N","DL",77,7,0,30],["Ernest J","LB",85,13,0,27],["Drake T","LB",76,32,0,26],["Tyrice K","LB",75,48,0,25],["Chazz S","LB",64,44,0,29],["Devon W","CB",93,21,0,26],["Josh J","CB",77,29,0,28],["Nehemiah P","CB",74,28,0,25],["Nick E","S",86,3,0,22],["Julian L","S",85,20,0,28],["Bud C","S",75,9,0,23],["Jason M","K",82,5,0,35]],"TB":[["Baker M","QB",78,6,0,31],["Jalon D","QB",61,10,0,24],["Bucky I","RB",90,7,0,24],["Kenneth G","RB",79,1,0,27],["Emeka E","WR",81,2,0,24],["Chris G","WR",80,14,0,30],["Jalen M","WR",74,11,0,25],["Tez J","WR",73,15,0,24],["Cade O","TE",75,88,0,27],["Ko K","TE",65,41,0,28],["Tristan W","OL",94,78,0,27],["Luke G","OL",84,67,0,28],["Graham B","OL",79,62,0,24],["Cody M","OL",77,69,0,27],["Ben B","OL",74,68,0,28],["Billy S","OL",69,75,0,23],["Vita V","DL",94,50,1,31],["YaYa D","DL",79,0,0,27],["A'Shawn R","DL",78,91,0,31],["Rueben B","DL",78,3,0,22],["Calijah K","DL",77,94,0,25],["Alex A","LB",80,34,0,32],["Josiah T","LB",77,45,0,21],["Christian R","LB",73,52,0,29],["SirVocea D","LB",72,8,0,26],["Zyon M","CB",83,27,0,27],["Jacob P","CB",81,25,0,22],["Benjamin M","CB",75,21,0,22],["Antoine W","S",93,31,1,28],["Tykee S","S",80,23,0,25],["Miles K","S",67,29,0,33],["Chase M","K",81,4,0,30]],"TEN":[["Cam W","QB",74,1,0,24],["Mitch T","QB",65,10,0,32],["Tony P","RB",85,20,0,29],["Tyjae S","RB",77,2,0,25],["Wan'Dale R","WR",82,4,0,25],["Carnell T","WR",79,14,0,21],["Calvin R","WR",78,0,0,32],["Elic A","WR",76,5,0,23],["Gunnar H","TE",72,84,0,24],["Daniel B","TE",70,82,0,26],["Peter S","OL",84,77,0,25],["JC L","OL",80,55,0,23],["Dan M","OL",72,75,0,28],["Fernando C","OL",70,66,0,23],["Austin S","OL",68,51,0,31],["Jackson S","OL",68,64,0,23],["John F","DL",80,91,0,30],["Keldric F","DL",78,15,0,21],["Jacob M","DL",76,57,0,31],["Jermaine J","DL",76,11,0,27],["Femi O","DL",73,7,0,23],["Cedric G","LB",78,33,0,24],["Cody B","LB",78,50,0,30],["Anthony H","LB",76,53,0,21],["Mohamoud D","LB",70,44,0,25],["Cordale F","CB",80,18,0,25],["Alontae T","CB",78,24,0,28],["Jaylon J","CB",73,42,0,24],["Kevin W","S",75,23,0,23],["Tony A","S",75,29,0,27],["Terrell B","S",71,38,0,28],["Joey S","K",75,6,0,30]],"WAS":[["Jayden D","QB",78,5,0,26],["Marcus M","QB",72,8,0,33],["Jacory C","RB",80,22,0,25],["Rachaad W","RB",77,1,0,27],["Terry M","WR",88,17,1,31],["Antonio W","WR",77,14,0,22],["Jaylin L","WR",75,83,0,24],["Treylon B","WR",74,13,0,26],["Chig O","TE",74,85,0,27],["Ben S","TE",69,82,0,24],["Laremy T","OL",94,78,0,32],["Sam C","OL",88,76,0,27],["Andrew W","OL",75,71,0,32],["Chris P","OL",73,75,0,28],["Josh C","OL",73,72,0,23],["Brandon C","OL",72,74,0,26],["Daron P","DL",84,94,0,29],["Odafe O","DL",80,98,0,28],["Dorance A","DL",79,92,0,29],["Charles O","DL",76,90,0,29],["Jer'Zhan N","DL",76,95,0,24],["Leo C","LB",82,54,0,26],["Sonny S","LB",81,52,0,22],["Frankie L","LB",80,4,0,30],["Jordan M","LB",68,58,0,25],["Rasul D","CB",82,26,0,32],["Amik R","CB",79,2,0,28],["Trey A","CB",78,23,0,24],["Nick C","S",81,25,0,25],["Quan M","S",77,20,0,26],["Jeremy R","S",73,39,0,30],["Drew S","K",74,19,0,23]]};
+const UNI={"BUF":{"H":["#00338D","#FFFFFF","#FFFFFF","#FFFFFF","#C60C30"],"A":["#FFFFFF","#00338D","#00338D","#FFFFFF","#C60C30"],"X":["#C60C30","#FFFFFF","#C60C30","#C60C30","#00338D"],"R":["#F4F6F8","#7C93B5","#F4F6F8","#F4F6F8","#B7C0CC"]},"MIA":{"H":["#008E97","#FFFFFF","#FFFFFF","#FFFFFF","#FC4C02"],"A":["#FFFFFF","#008E97","#FFFFFF","#FFFFFF","#FC4C02"],"X":["#008E97","#FC4C02","#008E97","#FFFFFF","#FC4C02"],"R":["#0A2A3A","#35D0C8","#0A2A3A","#0A2A3A","#FC4C02"]},"NE":{"H":["#002244","#FFFFFF","#002244","#B0B7BC","#C60C30"],"A":["#FFFFFF","#002244","#002244","#B0B7BC","#C60C30"],"X":["#C60C30","#FFFFFF","#FFFFFF","#FFFFFF","#002244"],"R":["#5C7896","#FFFFFF","#B0B7BC","#B0B7BC","#C60C30"]},"NYJ":{"H":["#125740","#FFFFFF","#FFFFFF","#125740","#101820"],"A":["#FFFFFF","#125740","#125740","#125740","#101820"],"X":["#101820","#FFFFFF","#101820","#101820","#125740"],"R":["#0B3A2B","#C2C8C4","#0B3A2B","#0B3A2B","#101820"]},"BAL":{"H":["#241773","#FFFFFF","#FFFFFF","#101820","#9E7C0C"],"A":["#FFFFFF","#241773","#101820","#101820","#9E7C0C"],"X":["#101820","#FFFFFF","#101820","#101820","#241773"],"R":["#241773","#D4AF37","#241773","#241773","#D4AF37"]},"CIN":{"H":["#101820","#FFFFFF","#FFFFFF","#FB4F14","#FB4F14"],"A":["#FFFFFF","#101820","#101820","#FB4F14","#FB4F14"],"X":["#FB4F14","#FFFFFF","#101820","#FB4F14","#101820"],"R":["#FFFFFF","#101820","#FFFFFF","#FFFFFF","#101820"]},"CLE":{"H":["#311D00","#FFFFFF","#FFFFFF","#FF3C00","#FF3C00"],"A":["#FFFFFF","#311D00","#311D00","#FF3C00","#FF3C00"],"X":["#311D00","#FF3C00","#311D00","#311D00","#FF3C00"],"R":["#FF3C00","#311D00","#311D00","#FFFFFF","#311D00"]},"PIT":{"H":["#101820","#FFFFFF","#FFB612","#101820","#FFB612"],"A":["#FFFFFF","#101820","#FFB612","#101820","#FFB612"],"X":["#101820","#FFB612","#101820","#101820","#FFB612"],"R":["#FFB612","#101820","#101820","#FFB612","#101820"]},"HOU":{"H":["#03202F","#FFFFFF","#03202F","#03202F","#A71930"],"A":["#FFFFFF","#03202F","#FFFFFF","#03202F","#A71930"],"X":["#A71930","#FFFFFF","#A71930","#A71930","#03202F"],"R":["#FFFFFF","#2A8FC7","#FFFFFF","#FFFFFF","#A71930"]},"IND":{"H":["#002C5F","#FFFFFF","#FFFFFF","#FFFFFF","#002C5F"],"A":["#FFFFFF","#002C5F","#FFFFFF","#FFFFFF","#002C5F"],"X":["#1B3E7C","#FFFFFF","#1B3E7C","#101820","#A2AAAD"],"R":["#FFFFFF","#002C5F","#002C5F","#002C5F","#A2AAAD"]},"JAX":{"H":["#006778","#FFFFFF","#FFFFFF","#101820","#D7A22A"],"A":["#FFFFFF","#006778","#101820","#101820","#D7A22A"],"X":["#101820","#00A3B4","#101820","#101820","#D7A22A"],"R":["#006778","#D7A22A","#006778","#00798C","#D7A22A"]},"TEN":{"H":["#0C2340","#FFFFFF","#4B92DB","#0C2340","#C8102E"],"A":["#FFFFFF","#0C2340","#0C2340","#0C2340","#4B92DB"],"X":["#4B92DB","#FFFFFF","#FFFFFF","#FFFFFF","#C8102E"],"R":["#0C2340","#7FE3FF","#0C2340","#0C2340","#4B92DB"]},"DEN":{"H":["#FB4F14","#FFFFFF","#FFFFFF","#002244","#002244"],"A":["#FFFFFF","#002244","#FFFFFF","#002244","#FB4F14"],"X":["#002244","#FB4F14","#002244","#002244","#FB4F14"],"R":["#FFFFFF","#FB4F14","#FFFFFF","#FFFFFF","#002244"]},"KC":{"H":["#E31837","#FFFFFF","#FFFFFF","#E31837","#FFB81C"],"A":["#FFFFFF","#E31837","#E31837","#E31837","#FFB81C"],"X":["#E31837","#FFB81C","#E31837","#E31837","#FFB81C"],"R":["#FFB81C","#E31837","#FFFFFF","#E31837","#E31837"]},"LV":{"H":["#101214","#A5ACAF","#A5ACAF","#A5ACAF","#A5ACAF"],"A":["#FFFFFF","#101214","#A5ACAF","#A5ACAF","#101214"],"X":["#FFFFFF","#6E767A","#FFFFFF","#A5ACAF","#101214"],"R":["#101214","#A5ACAF","#101214","#101214","#A5ACAF"]},"LAC":{"H":["#0080C6","#FFFFFF","#FFC20E","#FFFFFF","#FFC20E"],"A":["#FFFFFF","#0080C6","#FFFFFF","#FFFFFF","#FFC20E"],"X":["#0C2340","#FFC20E","#0C2340","#0C2340","#0080C6"],"R":["#0A3DA8","#FFC20E","#0A3DA8","#FFFFFF","#FFC20E"]},"DAL":{"H":["#FFFFFF","#003594","#7F9695","#869397","#041E42"],"A":["#041E42","#FFFFFF","#869397","#869397","#869397"],"X":["#041E42","#FFFFFF","#FFFFFF","#FFFFFF","#869397"],"R":["#003594","#C5CED1","#869397","#869397","#FFFFFF"]},"NYG":{"H":["#0B2265","#FFFFFF","#FFFFFF","#0B2265","#A71930"],"A":["#FFFFFF","#A71930","#A5ACAF","#0B2265","#0B2265"],"X":["#A71930","#FFFFFF","#A5ACAF","#0B2265","#0B2265"],"R":["#0B2265","#FFFFFF","#0B2265","#0B2265","#A71930"]},"PHI":{"H":["#004C54","#FFFFFF","#FFFFFF","#004C54","#A5ACAF"],"A":["#FFFFFF","#004C54","#004C54","#004C54","#A5ACAF"],"X":["#046A38","#FFFFFF","#A5ACAF","#046A38","#A5ACAF"],"R":["#101820","#FFFFFF","#101820","#101820","#004C54"]},"WAS":{"H":["#5A1414","#FFFFFF","#FFB612","#5A1414","#FFB612"],"A":["#FFFFFF","#5A1414","#5A1414","#5A1414","#FFB612"],"X":["#101820","#FFB612","#101820","#101820","#5A1414"],"R":["#FFB612","#5A1414","#5A1414","#5A1414","#FFFFFF"]},"CHI":{"H":["#0B162A","#FFFFFF","#FFFFFF","#0B162A","#C83803"],"A":["#FFFFFF","#0B162A","#0B162A","#0B162A","#C83803"],"X":["#C83803","#FFFFFF","#FFFFFF","#C83803","#0B162A"],"R":["#0B162A","#E64100","#E64100","#0B162A","#E64100"]},"DET":{"H":["#0076B6","#FFFFFF","#B0B7BC","#B0B7BC","#B0B7BC"],"A":["#FFFFFF","#0076B6","#0076B6","#B0B7BC","#B0B7BC"],"X":["#101820","#2A9BE0","#101820","#0076B6","#B0B7BC"],"R":["#0076B6","#101820","#101820","#101820","#B0B7BC"]},"GB":{"H":["#203731","#FFFFFF","#FFB612","#FFB612","#FFB612"],"A":["#FFFFFF","#203731","#FFB612","#FFB612","#203731"],"X":["#FFFFFF","#203731","#FFFFFF","#FFFFFF","#FFB612"],"R":["#203731","#FFB612","#203731","#FFB612","#FFB612"]},"MIN":{"H":["#4F2683","#FFFFFF","#FFFFFF","#4F2683","#FFC62F"],"A":["#FFFFFF","#4F2683","#4F2683","#4F2683","#FFC62F"],"X":["#FFFFFF","#4F2683","#FFFFFF","#FFFFFF","#4F2683"],"R":["#4F2683","#FFC62F","#4F2683","#4F2683","#FFC62F"]},"ATL":{"H":["#101820","#FFFFFF","#101820","#101820","#A71930"],"A":["#FFFFFF","#A71930","#FFFFFF","#101820","#101820"],"X":["#A71930","#FFFFFF","#FFFFFF","#101820","#101820"],"R":["#A71930","#101820","#A71930","#A71930","#101820"]},"CAR":{"H":["#101820","#FFFFFF","#BFC0BF","#BFC0BF","#0085CA"],"A":["#FFFFFF","#101820","#BFC0BF","#BFC0BF","#0085CA"],"X":["#0085CA","#FFFFFF","#BFC0BF","#BFC0BF","#101820"],"R":["#101820","#0085CA","#101820","#101820","#0085CA"]},"NO":{"H":["#101820","#D3BC8D","#D3BC8D","#D3BC8D","#D3BC8D"],"A":["#FFFFFF","#101820","#D3BC8D","#D3BC8D","#101820"],"X":["#FFFFFF","#B89B5E","#FFFFFF","#101820","#D3BC8D"],"R":["#D3BC8D","#101820","#101820","#101820","#FFFFFF"]},"TB":{"H":["#D50A0A","#FFFFFF","#34302B","#34302B","#FF7900"],"A":["#FFFFFF","#D50A0A","#34302B","#34302B","#FF7900"],"X":["#FF7900","#FFFFFF","#FFFFFF","#FFFFFF","#D50A0A"],"R":["#34302B","#FF7900","#34302B","#34302B","#D50A0A"]},"ARI":{"H":["#97233F","#FFFFFF","#FFFFFF","#FFFFFF","#101820"],"A":["#FFFFFF","#97233F","#FFFFFF","#FFFFFF","#101820"],"X":["#101820","#C8324F","#101820","#101820","#97233F"],"R":["#EDE6DA","#B87333","#EDE6DA","#EDE6DA","#B87333"]},"LAR":{"H":["#003594","#FFD100","#FFD100","#003594","#FFD100"],"A":["#E6E1D3","#003594","#E6E1D3","#003594","#FFD100"],"X":["#FFFFFF","#003594","#FFD100","#003594","#FFD100"],"R":["#0A1A3C","#FFFFFF","#0A1A3C","#0A1A3C","#FFD100"]},"SF":{"H":["#AA0000","#FFFFFF","#B3995D","#B3995D","#B3995D"],"A":["#FFFFFF","#AA0000","#B3995D","#B3995D","#AA0000"],"X":["#AA0000","#FFFFFF","#FFFFFF","#B3995D","#101820"],"R":["#101820","#B3995D","#101820","#101820","#C8102E"]},"SEA":{"H":["#002244","#FFFFFF","#002244","#002244","#69BE28"],"A":["#FFFFFF","#002244","#002244","#002244","#69BE28"],"X":["#2A5DB0","#FFFFFF","#A5ACAF","#A5ACAF","#69BE28"],"R":["#C4CCD2","#002244","#002244","#C4CCD2","#69BE28"]}};
+
+'use strict';
+// ===== helpers =====
+const rnd=(a,b)=>a+Math.random()*(b-a);
+const rint=(a,b)=>Math.floor(rnd(a,b+1));
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+function gauss(){let u=0;for(let i=0;i<6;i++)u+=Math.random();return (u-3)/0.7071;}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+
+// ===== league data: real cities and colors, no logos =====
+const TEAM_DEFS=[
+['BUF','Buffalo','#00338D','#C60C30','A','East'],['MIA','Miami','#008E97','#FC4C02','A','East'],
+['NE','New England','#002244','#C60C30','A','East'],['NYJ','New York J','#125740','#FFFFFF','A','East'],
+['BAL','Baltimore','#241773','#9E7C0C','A','North'],['CIN','Cincinnati','#FB4F14','#000000','A','North'],
+['CLE','Cleveland','#311D00','#FF3C00','A','North'],['PIT','Pittsburgh','#101820','#FFB612','A','North'],
+['HOU','Houston','#03202F','#A71930','A','South'],['IND','Indianapolis','#002C5F','#A2AAAD','A','South'],
+['JAX','Jacksonville','#006778','#D7A22A','A','South'],['TEN','Tennessee','#0C2340','#4B92DB','A','South'],
+['DEN','Denver','#FB4F14','#002244','A','West'],['KC','Kansas City','#E31837','#FFB81C','A','West'],
+['LV','Las Vegas','#000000','#A5ACAF','A','West'],['LAC','Los Angeles C','#0080C6','#FFC20E','A','West'],
+['DAL','Dallas','#003594','#869397','N','East'],['NYG','New York G','#0B2265','#A71930','N','East'],
+['PHI','Philadelphia','#004C54','#A5ACAF','N','East'],['WAS','Washington','#5A1414','#FFB612','N','East'],
+['CHI','Chicago','#0B162A','#C83803','N','North'],['DET','Detroit','#0076B6','#B0B7BC','N','North'],
+['GB','Green Bay','#203731','#FFB612','N','North'],['MIN','Minnesota','#4F2683','#FFC62F','N','North'],
+['ATL','Atlanta','#A71930','#000000','N','South'],['CAR','Carolina','#0085CA','#101820','N','South'],
+['NO','New Orleans','#101820','#D3BC8D','N','South'],['TB','Tampa Bay','#D50A0A','#34302B','N','South'],
+['ARI','Arizona','#97233F','#FFB612','N','West'],['LAR','Los Angeles R','#003594','#FFD100','N','West'],
+['SF','San Francisco','#AA0000','#B3995D','N','West'],['SEA','Seattle','#002244','#69BE28','N','West']];
+const CONF={A:'American',N:'National'},DIVS=['East','North','South','West'];
+const FIRST=['James','Marcus','Tyler','Devin','Jalen','Caleb','Andre','Isaiah','Malik','Trevor','Darius','Cole','Xavier','Jordan','Elijah','Micah','Derrick','Brandon','Chris','Aaron','Nate','Kyle','Jamal','Terrence','Grant','Logan','Mason','Hunter','Dante','Corey','Zach','Tre','Omar','Luis','Mateo','Diego','Kai','Noah','Ethan','Owen','Jaylen','Deshawn','Rashad','Quincy','Miles','Jonah','Silas','Reggie','Tavon','Bryce','Colton','Wyatt','Emeka','Kofi','Sione','Tevita','Keanu','Javier','Rico','Dominic','Theo','Amari','Ezra','Roman'];
+const LAST=['Brooks','Hayes','Bennett','Coleman','Foster','Griffin','Harper','Jennings','Keller','Lawson','Mercer','Nolan','Owens','Pierce','Quinn','Reeves','Sutton','Tate','Underwood','Vaughn','Abbott','Barnes','Castillo','Dawson','Ellis','Holloway','Ingram','Knox','Monroe','Nash','Osei','Paige','Rhodes','Salazar','Thorne','Upton','Vega','Whitaker','Yates','Zamora','Ashford','Blackwood','Calloway','Delgado','Easton','Fontaine','Gallagher','Hendrix','Irving','Jacobsen','Kimball','Langford','Maddox','Navarro','Okafor','Radford','Stanton','Tolliver','Usher','Valdez','Winslow','Yarbrough','Adeyemi','Boateng','Cortez','Dunmore','Everett','Garza','Hollis','Iverson','Jarrett','Kane','Lockhart','Mosley','Nwosu','Ortega','Pruitt','Rollins','Sandoval','Tuilagi','Fonoti','Mahoe','Kealoha','Whitlock','Bellamy','Marchetti','Lindqvist','Achebe','Duvall','Sterling'];
+const POS_ORDER=['QB','RB','WR','TE','OL','DL','LB','CB','S','K'];
+const ROSTER_N={QB:2,RB:2,WR:4,TE:2,OL:6,DL:5,LB:4,CB:3,S:3,K:1};
+const START_N={QB:1,RB:1,WR:3,TE:1,OL:5,DL:4,LB:3,CB:2,S:2,K:1};
+const POS_SPD={QB:66,RB:86,WR:88,TE:77,OL:54,DL:66,LB:76,CB:88,S:85,K:55};
+const POS_VAL={QB:1.7,RB:0.85,WR:1.05,TE:0.8,OL:0.9,DL:1.0,LB:0.85,CB:1.0,S:0.85,K:0.3};
+const NUM_R={QB:[[1,19]],RB:[[20,39]],WR:[[80,89],[10,19]],TE:[[80,89]],OL:[[60,79]],DL:[[90,99],[50,59]],LB:[[40,59]],CB:[[20,39]],S:[[20,49]],K:[[1,9]]};
+const TRADE_DEADLINE=9,ROSTER_MAX=38,ROUNDS=3,XF_OVR=95;
+const DIFFS=['Rookie','Pro','All-Pro','Legend'];
+const UNI_NAMES={H:'Home',A:'Away',X:'Alternate',R:'Rivalry'};
+// X-Factor abilities. Linemen are always on; everyone else has to get "in the zone" during a game.
+const XF={QB:['Gunslinger','Faster, more accurate throws. In the zone after 3 completions.'],RB:['Wrecking Ball','Breaks more tackles. In the zone after 2 runs of 5+ yards.'],
+  WR:['Sure Hands','Wins contested catches. In the zone after 2 catches.'],TE:['Mismatch','Wins contested catches. In the zone after 2 catches.'],OL:['Anchor','Holds blocks longer. Always on.'],
+  DL:['Unstoppable','Sheds blocks faster. In the zone after a sack or tackle for loss.'],LB:['Enforcer','Tackles are rarely broken. In the zone after 2 tackles.'],
+  CB:['Lockdown','Tighter coverage. In the zone after 2 stops.'],S:['Ball Hawk','More interceptions. In the zone after 2 stops.'],K:['Clutch','A wider field goal target. Always on.']};
+
+let S=null,NID=1;
+const dk=()=>S?[-1,0,0.7,1.4][S.diff]:0; // difficulty lean: Rookie, Pro, All-Pro, Legend
+
+function numFor(pos,taken){const R=NUM_R[pos];for(let i=0;i<60;i++){const r=pick(R),n=rint(r[0],r[1]);if(!taken.has(n)){taken.add(n);return n;}}for(let n=1;n<100;n++)if(!taken.has(n)){taken.add(n);return n;}return 0;}
+const spdFor=(pos,ovr)=>clamp(Math.round(POS_SPD[pos]+(ovr-76)*0.3+rnd(-3,3)),40,99);
+function mkPlayer(pos,ovr,age,taken){ovr=clamp(Math.round(ovr),50,99);
+  return {id:NID++,n:pick(FIRST)+' '+pick(LAST),pos,age,ovr,pot:clamp(ovr+(age<=25?rint(0,9):0),ovr,99),spd:spdFor(pos,ovr),num:taken?numFor(pos,taken):0,xf:false};}
+function mkPicks(yr){return S_teamsIds().flatMap(t=>[1,2,3].map(rd=>({id:S.pid++,yr,rd,orig:t,own:t})));}
+const S_teamsIds=()=>[...Array(32).keys()];
+
+function newLeague(){NID=1;
+  const teams=TEAM_DEFS.map((d,i)=>{const taken=new Set(),roster=[];
+    for(const r of REAL[d[0]]){let num=r[3];if(taken.has(num))num=numFor(r[1],taken);else taken.add(num);
+      roster.push({id:NID++,n:r[0],pos:r[1],age:r[5],ovr:r[2],pot:r[5]<=25?clamp(r[2]+rint(0,7),r[2],99):r[2],spd:spdFor(r[1],r[2]),num,xf:!!r[4]});}
+    for(const pos of POS_ORDER)while(roster.filter(p=>p.pos===pos).length<ROSTER_N[pos])roster.push(mkPlayer(pos,rnd(60,67),rint(22,25),taken));
+    return {id:i,abbr:d[0],name:d[1],c1:d[2],c2:d[3],conf:d[4],div:d[5],roster,w:0,l:0,pf:0,pa:0};});
+  S={v:2,season:2026,week:0,user:-1,teams,schedule:makeSchedule(),phase:'regular',po:null,picks:[],pid:1,news:[],offer:null,nid:NID,champ:null,last:'',diff:1,playDef:true,tp:12,draft:null,myPicks:[]};
+  S.picks=[...mkPicks(2027),...mkPicks(2028)];return S;}
+
+// ===== depth chart and ratings =====
+function starters(T,pos){return T.roster.filter(p=>p.pos===pos).sort((a,b)=>b.ovr-a.ovr).slice(0,START_N[pos]);}
+function isStarter(T,p){return starters(T,p.pos).includes(p);}
+function ratings(T){const avg=pos=>{const a=starters(T,pos);return a.reduce((x,p)=>x+p.ovr+(p.xf?2:0),0)/(a.length||1);};
+  const off=(avg('QB')*3+avg('RB')+avg('WR')*2.5+avg('TE')*0.7+avg('OL')*2.8)/10;
+  const def=(avg('DL')*3+avg('LB')*2.2+avg('CB')*2.6+avg('S')*2.2)/10;
+  return {off:Math.round(off),def:Math.round(def),ovr:Math.round((off+def)/2)};}
+function checkXF(T,p){if(!p.xf&&p.ovr>=XF_OVR){p.xf=true;if(T.id===S.user)S.news.unshift(p.n+' ('+p.pos+') earned an X-Factor: '+XF[p.pos][0]+'.');}}
+
+// ===== schedule and simulation =====
+function makeSchedule(n=32,weeks=17){const ids=[...Array(n).keys()];shuffle(ids);const rounds=[];
+  for(let r=0;r<n-1;r++){const g=[];for(let i=0;i<n/2;i++){const a=ids[i],b=ids[n-1-i];g.push(Math.random()<0.5?{h:a,a:b,hs:null,as:null}:{h:b,a:a,hs:null,as:null});}
+    rounds.push(g);ids.splice(1,0,ids.pop());}
+  shuffle(rounds);return rounds.slice(0,weeks);}
+function simGame(H,A){const rh=ratings(H),ra=ratings(A);
+  const f=(o,d,hf)=>{const x=Math.max(0,21+(o-d)*0.6+hf+gauss()*8);const td=Math.floor(x/7);return td*7+Math.min(2,Math.round((x-td*7)/3))*3;};
+  let hs=f(rh.off,ra.def,1.5),as=f(ra.off,rh.def,0);if(hs===as){if(Math.random()<0.5)hs+=3;else as+=3;}return [hs,as];}
+const cmpTeams=(a,b)=>(b.w/((b.w+b.l)||1))-(a.w/((a.w+a.l)||1))||(b.pf-b.pa)-(a.pf-a.pa)||a.id-b.id;
+function currentGames(){if(S.phase==='regular')return S.schedule[S.week]||[];if(S.phase==='playoffs')return S.po.games;return [];}
+function userMatch(){return currentGames().find(g=>(g.h===S.user||g.a===S.user)&&g.hs==null)||null;}
+function roundName(){if(!S.po)return '';const n=S.po.alive.A.length+S.po.alive.N.length;return n>=14?'Wild Card round':n>=8?'Divisional round':n>=4?'Conference finals':'Gridiron Bowl';}
+// Playoff field: four division winners seeded 1-4 by record, then three wild cards seeded 5-7.
+function seedsFor(c){const ts=S.teams.filter(t=>t.conf===c);const dw=DIVS.map(d=>ts.filter(t=>t.div===d).sort(cmpTeams)[0]).sort(cmpTeams);
+  const rest=ts.filter(t=>!dw.includes(t)).sort(cmpTeams);return {div:dw,wc:rest.slice(0,3),hunt:rest.slice(3,6)};}
+function startPlayoffs(){S.phase='playoffs';S.offer=null;const seeds={};
+  for(const c of ['A','N']){const s=seedsFor(c);seeds[c]=[...s.div,...s.wc].map(t=>t.id);}
+  S.po={seeds,alive:{A:seeds.A.slice(),N:seeds.N.slice()},games:[],log:[]};
+  const U=S.teams[S.user],seed=seeds[U.conf].indexOf(S.user);
+  S.news.unshift(seed>=0?'You made the playoffs as the '+CONF[U.conf]+' No. '+(seed+1)+' seed'+(seed<4?' (division winner).':' (wild card).'):'You missed the playoffs at '+U.w+'-'+U.l+'.');
+  buildRound();}
+function buildRound(){const po=S.po;po.games=[];const A=po.alive.A,N=po.alive.N;
+  if(A.length===1&&N.length===1){po.games.push({h:A[0],a:N[0],hs:null,as:null,conf:'F'});return;}
+  for(const c of ['A','N']){const L=po.alive[c],pool=L.length===7?L.slice(1):L.slice();
+    for(let i=0;i<pool.length/2;i++)po.games.push({h:pool[i],a:pool[pool.length-1-i],hs:null,as:null,conf:c});}}
+function finishRound(){const po=S.po,losers=po.games.map(g=>g.hs>g.as?g.a:g.h);
+  po.log.push({name:roundName(),games:po.games.map(g=>({h:g.h,a:g.a,hs:g.hs,as:g.as}))});
+  const fin=po.games.length===1&&po.games[0].conf==='F',g0=po.games[0];
+  for(const c of ['A','N'])po.alive[c]=po.alive[c].filter(id=>!losers.includes(id));
+  if(fin){S.champ=g0.hs>g0.as?g0.h:g0.a;S.phase='offseason';po.games=[];S.news.unshift(S.teams[S.champ].name+' win the '+S.season+' Gridiron Bowl.');}
+  else buildRound();}
+function completeStep(played){const games=currentGames();
+  for(const g of games)if(g.hs==null){const r=simGame(S.teams[g.h],S.teams[g.a]);g.hs=r[0];g.as=r[1];}
+  const ug=games.find(g=>g.h===S.user||g.a===S.user);
+  if(ug){const home=ug.h===S.user,us=home?ug.hs:ug.as,th=home?ug.as:ug.hs,opp=S.teams[home?ug.a:ug.h],won=us>th;
+    const tp=(played?(won?5:3):(won?2:1))+(S.phase==='playoffs'?2:0);S.tp+=tp;
+    S.last=(S.phase==='regular'?'Week '+(S.week+1):roundName())+': '+(won?'Won ':'Lost ')+us+'-'+th+(home?' vs ':' at ')+opp.name+' (+'+tp+' training points)';S.news.unshift(S.last);}
+  if(S.phase==='regular'){
+    for(const g of games){const H=S.teams[g.h],A=S.teams[g.a];H.pf+=g.hs;H.pa+=g.as;A.pf+=g.as;A.pa+=g.hs;if(g.hs>g.as){H.w++;A.l++;}else{A.w++;H.l++;}}
+    S.week++;if(S.week>=S.schedule.length)startPlayoffs();else if(S.week<TRADE_DEADLINE)makeOffer();else{if(S.week===TRADE_DEADLINE)S.news.unshift('The trade deadline has passed. Trades reopen in the offseason.');S.offer=null;}}
+  else finishRound();
+  if(S.news.length>16)S.news.length=16;save();}
+function finishUserGame(us,them){const m=userMatch();if(m){const home=m.h===S.user;m.hs=home?us:them;m.as=home?them:us;}completeStep(true);}
+
+// ===== offseason: aging, draft, new season =====
+function draftOrder(){const rank=S.teams.slice().sort(cmpTeams).reverse().map(t=>t.id);if(S.champ!=null){rank.splice(rank.indexOf(S.champ),1);rank.push(S.champ);}
+  return S.picks.filter(k=>k.yr===S.season+1).sort((a,b)=>a.rd-b.rd||rank.indexOf(a.orig)-rank.indexOf(b.orig)).map(k=>k.id);}
+function startDraft(){S.offer=null;
+  for(const T of S.teams){const keep=[];
+    for(const p of T.roster){p.age++;let d;
+      if(p.age<=25)d=rint(0,Math.max(1,Math.min(4,p.pot-p.ovr+1)));else if(p.age<=29)d=rint(-1,2);else if(p.age<=32)d=rint(-3,0);else d=rint(-5,-1);
+      p.ovr=clamp(p.ovr+d,50,99);if(p.pot<p.ovr)p.pot=p.ovr;if(p.age>=30)p.spd=Math.max(40,p.spd-1);
+      const retire=(p.age>=36&&Math.random()<0.6)||(p.age>=32&&p.ovr<68)||p.age>=40||(p.pos!=='K'&&p.pos!=='QB'&&p.age>=34&&Math.random()<0.5);
+      if(retire){if(T.id===S.user)S.news.unshift(p.n+' ('+p.pos+', '+p.ovr+') retired.');}else{checkXF(T,p);keep.push(p);}}
+    T.roster=keep;}
+  const n=32*ROUNDS+24,bag=[];for(const pos of POS_ORDER)for(let i=0;i<ROSTER_N[pos];i++)bag.push(pos);
+  const pool=[];for(let i=0;i<n;i++){const pos=pick(bag);if(pos==='K'&&Math.random()<0.6){i--;continue;}
+    const p=mkPlayer(pos,clamp(79-i*0.15+gauss()*2.4,56,84),rint(21,23),null);p.pot=clamp(p.ovr+rint(3,14),p.ovr,99);pool.push(p);}
+  pool.sort((a,b)=>b.ovr-a.ovr);S.myPicks=[];
+  S.draft={yr:S.season+1,order:draftOrder(),i:0,pool,log:[]};S.phase='draft';if(!S.draft.order.length)endDraft();save();}
+const curPick=()=>S.draft?S.picks.find(k=>k.id===S.draft.order[S.draft.i]):null;
+function aiPick(T){let best=null,bs=-1e9;
+  for(const p of S.draft.pool){const have=T.roster.filter(x=>x.pos===p.pos),top=have.reduce((m,x)=>Math.max(m,x.ovr),0);
+    let sc=p.ovr+(p.pot-p.ovr)*0.35+(have.length<ROSTER_N[p.pos]?4:0)+(p.ovr>top-3?2:0)+rnd(-1.5,1.5);
+    if(p.pos==='QB'&&top>=80)sc-=6;if(p.pos==='K')sc-=have.length?8:2;if(sc>bs){bs=sc;best=p;}}
+  return best;}
+function makePick(p){const D=S.draft,pk=curPick(),T=S.teams[pk.own];D.pool.splice(D.pool.indexOf(p),1);
+  p.num=numFor(p.pos,new Set(T.roster.map(x=>x.num)));T.roster.push(p);
+  D.log.unshift({rd:pk.rd,no:D.i+1,team:T.id,n:p.n,pos:p.pos,ovr:p.ovr});
+  if(T.id===S.user){S.myPicks.push('Round '+pk.rd+': '+p.pos+' '+p.n+' ('+p.ovr+' overall)');}
+  D.i++;if(D.i>=D.order.length)endDraft();else save();}
+function simDraftToUser(){while(S.phase==='draft'&&curPick().own!==S.user)makePick(aiPick(S.teams[curPick().own]));}
+function trimRoster(T,max){while(T.roster.length>max){let worst=null;
+    for(const p of T.roster){const c=T.roster.filter(x=>x.pos===p.pos).length;if(c<=ROSTER_N[p.pos])continue;if(!worst||p.ovr<worst.ovr)worst=p;}
+    if(!worst)break;T.roster.splice(T.roster.indexOf(worst),1);}}
+function endDraft(){const yr=S.draft.yr;
+  for(const T of S.teams){const taken=new Set(T.roster.map(p=>p.num));
+    for(const pos of POS_ORDER)while(T.roster.filter(p=>p.pos===pos).length<ROSTER_N[pos]){const r=mkPlayer(pos,rnd(58,66),rint(21,23),taken);r.pot=clamp(r.ovr+rint(2,10),r.ovr,99);T.roster.push(r);
+      if(T.id===S.user)S.news.unshift('Signed undrafted rookie '+r.pos+' '+r.n+' ('+r.ovr+') to fill a roster spot.');}
+    if(T.id!==S.user)trimRoster(T,36);}
+  S.picks=S.picks.filter(k=>k.yr!==yr).concat(mkPicks(yr+2));
+  if(S.myPicks.length)S.news.unshift('Your '+yr+' draft class: '+S.myPicks.join('; ')+'.');
+  S.draft=null;S.phase='preseason';save();}
+function newSeason(){const U=S.teams[S.user];if(U.roster.length>ROSTER_MAX)return false;
+  for(const T of S.teams){T.w=T.l=T.pf=T.pa=0;}
+  S.season++;S.week=0;S.phase='regular';S.po=null;S.schedule=makeSchedule();S.offer=null;S.champ=null;S.last='';save();return true;}
+
+// ===== player management =====
+const upgradeCost=p=>p.ovr>=99?0:p.ovr<75?1:p.ovr<85?2:p.ovr<92?3:4;
+function upgradePlayer(p){const c=upgradeCost(p);if(!c)return 'Already maxed out.';if(S.tp<c)return 'Not enough training points. Win games to earn more.';
+  S.tp-=c;p.ovr++;if(p.pot<p.ovr)p.pot=p.ovr;if(p.ovr%3===0&&p.spd<99)p.spd++;checkXF(S.teams[S.user],p);save();return '';}
+function releasePlayer(p){const U=S.teams[S.user];if(U.roster.filter(x=>x.pos===p.pos).length<=START_N[p.pos])return 'You need at least '+START_N[p.pos]+' at '+p.pos+'.';
+  U.roster.splice(U.roster.indexOf(p),1);S.news.unshift('Released '+p.pos+' '+p.n+'.');save();return '';}
+function editPlayer(p,name,num){const U=S.teams[S.user];name=String(name).replace(/[<>]/g,'').trim().slice(0,22);num=Math.round(+num);
+  if(!name)return 'Enter a name.';if(!(num>=0&&num<=99))return 'Pick a number from 0 to 99.';
+  const clash=U.roster.find(x=>x!==p&&x.num===num);if(clash)return 'No. '+num+' is worn by '+clash.n+'.';
+  p.n=name;p.num=num;save();return '';}
+
+// ===== trades: players and draft picks =====
+function tradeValue(p){const v=Math.pow(Math.max(0,p.ovr-52)/10,2.5)*POS_VAL[p.pos];const a=p.age;
+  let m=a<=23?1.2:a<=25?1.12:a<=27?1.0:a<=29?0.85:a<=31?0.62:a<=33?0.4:0.22;if(a<=25)m+=Math.max(0,p.pot-p.ovr)*0.03;if(p.xf)m+=0.08;
+  return Math.round(v*m*10)/10;}
+const nextDraftYr=()=>S.season+1+(S.phase==='preseason'?1:0);
+function strengthRank(id){const key=t=>ratings(t).ovr+(t.w-t.l)*0.7;const arr=S.teams.slice().sort((a,b)=>key(a)-key(b));return arr.findIndex(t=>t.id===id)/31;}
+function pickValue(k){let f=1.3-0.6*strengthRank(k.orig),v=[13,6,2.6][k.rd-1];if(k.yr>nextDraftYr()){v*=0.8;f=1+(f-1)*0.5;}return Math.round(v*f*10)/10;}
+const pickName=k=>k.yr+' Round '+k.rd+(k.orig!==k.own?' (from '+S.teams[k.orig].name+')':'');
+const teamPicks=id=>S.picks.filter(k=>k.own===id).sort((a,b)=>a.yr-b.yr||a.rd-b.rd);
+function lowestStarter(T,pos,exclude){const a=T.roster.filter(p=>p.pos===pos&&!exclude.includes(p)).sort((x,y)=>y.ovr-x.ovr),n=START_N[pos];return a.length>=n?a[n-1].ovr:0;}
+// How team T sees a deal where it receives players `gets` + picks `getsK` and sends `gives` + `givesK`.
+function aiEval(T,gets,gives,getsK,givesK){let gv=0,ov=0;
+  for(const p of gets){const low=lowestStarter(T,p.pos,gives);gv+=tradeValue(p)*(p.ovr>low?(p.ovr>low+4?1.3:1.15):0.65);}
+  for(const p of gives){let m=isStarter(T,p)?1.12:0.95;if(p.pos==='QB'&&isStarter(T,p)&&p.ovr>=82)m=1.7;ov+=tradeValue(p)*m;}
+  for(const k of getsK||[])gv+=pickValue(k);for(const k of givesK||[])ov+=pickValue(k)*1.08;
+  return {gv,ov,ratio:ov>0?gv/ov:(gv>0?9:0)};}
+function rosterIssue(T,out,inn){const r=T.roster.filter(p=>!out.includes(p)).concat(inn);
+  if(r.length>ROSTER_MAX)return 'would have more than '+ROSTER_MAX+' players';
+  for(const pos of POS_ORDER)if(r.filter(p=>p.pos===pos).length<START_N[pos])return 'would be short at '+pos;return '';}
+function fixNums(T){const all=new Set(T.roster.map(p=>p.num)),seen=new Set();
+  for(const p of T.roster){if(seen.has(p.num))p.num=numFor(p.pos,all);seen.add(p.num);}}
+function assetNames(ps,ks){return ps.map(p=>p.pos+' '+p.n).concat(ks.map(k=>'a '+k.yr+' round '+k.rd+' pick')).join(', ');}
+function execTrade(A,aOut,aK,B,bOut,bK){A.roster=A.roster.filter(p=>!aOut.includes(p)).concat(bOut);B.roster=B.roster.filter(p=>!bOut.includes(p)).concat(aOut);
+  for(const k of aK)k.own=B.id;for(const k of bK)k.own=A.id;fixNums(A);fixNums(B);
+  S.news.unshift('Trade: '+A.name+' send '+assetNames(aOut,aK)+' to '+B.name+' for '+assetNames(bOut,bK)+'.');save();}
+function tradesOpen(){return S.phase==='offseason'||S.phase==='preseason'||(S.phase==='regular'&&S.week<TRADE_DEADLINE);}
+function proposeTrade(T,give,get,giveK,getK){const U=S.teams[S.user];
+  if(!tradesOpen())return {ok:false,msg:S.phase==='draft'?'Trades are closed during the draft.':'The trade deadline has passed.'};
+  if(!(give.length+giveK.length)||!(get.length+getK.length))return {ok:false,msg:'Pick at least one player or pick on each side.'};
+  let iss=rosterIssue(U,give,get);if(iss)return {ok:false,msg:'Your team '+iss+'.'};
+  iss=rosterIssue(T,get,give);if(iss)return {ok:false,msg:T.name+' '+iss+'.'};
+  const ev=aiEval(T,give,get,giveK,getK);
+  if(ev.ratio<1.03)return {ok:false,msg:T.name+' say no. '+(ev.ratio<0.7?'They want a lot more back.':'They want a little more value.')};
+  execTrade(U,give,giveK,T,get,getK);return {ok:true,msg:'Trade accepted.'};}
+function makeOffer(){S.offer=null;if(Math.random()>0.45)return;const U=S.teams[S.user];
+  for(let i=0;i<120;i++){const T=pick(S.teams);if(T.id===S.user)continue;const P=pick(U.roster);if(P.pos==='K'||(P.pos==='QB'&&isStarter(U,P)))continue;const vp=tradeValue(P);if(vp<2.5)continue;
+    if(i%3===0){const ks=teamPicks(T.id).filter(k=>{const v=pickValue(k);return v>=vp*0.95&&v<=vp*1.5;});if(!ks.length||rosterIssue(U,[P],[]))continue;
+      if(aiEval(T,[P],[],[],[ks[0]]).ratio<1.03)continue;S.offer={team:T.id,give:[P.id],get:[],giveK:[],getK:[ks[0].id]};return;}
+    const Q=pick(T.roster);if(Q.pos===P.pos||Q.pos==='K')continue;const vq=tradeValue(Q);if(vq<vp*0.8||vq>vp*1.5)continue;
+    if(Q.ovr<lowestStarter(U,Q.pos,[])-1)continue;if(rosterIssue(U,[P],[Q])||rosterIssue(T,[Q],[P]))continue;if(aiEval(T,[P],[Q]).ratio<1.03)continue;
+    S.offer={team:T.id,give:[P.id],get:[Q.id],giveK:[],getK:[]};return;}}
+
+// ===== tiny 3D renderer: flat-shaded boxes on a 2D canvas =====
+const FW=26.67,NEAR=1.2,FONT_D="'Barlow Condensed','Arial Narrow',Impact,sans-serif";
+const cam={x:0,y:10.5,z:-21,pitch:0.36,c:1,s:0,F:500,cx:0,cy:0};
+let cv=null,ctx=null,W=2,H=2,DPR=1,faces=[],crowd=[],FLIP=false;
+// When the user plays defense the whole scene is turned around so the camera sits behind the defense.
+const RX=x=>FLIP?-x:x,RZ=z=>FLIP?100-z:z;
+
+function setCam(){cam.c=Math.cos(cam.pitch);cam.s=Math.sin(cam.pitch);cam.F=Math.min(1.0*H,0.47*W);cam.cx=W/2;cam.cy=H*0.54;}
+function toCam(x,y,z){const dx=x-cam.x,dy=y-cam.y,dz=z-cam.z;return [dx,dy*cam.c+dz*cam.s,-dy*cam.s+dz*cam.c];}
+function proj(c){const k=cam.F/c[2];return [cam.cx+c[0]*k,cam.cy-c[1]*k];}
+function projW(x,y,z){const c=toCam(x,y,z);if(c[2]<NEAR)return null;const k=cam.F/c[2];return [cam.cx+c[0]*k,cam.cy-c[1]*k,c[2]];}
+function clipNear(P){const out=[];for(let i=0;i<P.length;i++){const a=P[i],b=P[(i+1)%P.length],ia=a[2]>=NEAR,ib=b[2]>=NEAR;if(ia)out.push(a);
+  if(ia!==ib){const t=(NEAR-a[2])/(b[2]-a[2]);out.push([a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,NEAR]);}}return out;}
+function poly3(pts,fill){let P=pts.map(p=>toCam(p[0],p[1],p[2]));P=clipNear(P);if(P.length<3)return;ctx.beginPath();
+  for(let i=0;i<P.length;i++){const s=proj(P[i]);if(i)ctx.lineTo(s[0],s[1]);else ctx.moveTo(s[0],s[1]);}ctx.closePath();ctx.fillStyle=fill;ctx.fill();}
+function gquad(x1,z1,x2,z2,fill){poly3([[x1,0,z1],[x2,0,z1],[x2,0,z2],[x1,0,z2]],fill);}
+function gline(x1,z1,x2,z2,wYd,col){let a=toCam(x1,0,z1),b=toCam(x2,0,z2);if(a[2]<NEAR&&b[2]<NEAR)return;
+  if(a[2]<NEAR){const t=(NEAR-a[2])/(b[2]-a[2]);a=[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,NEAR];}
+  else if(b[2]<NEAR){const t=(NEAR-b[2])/(a[2]-b[2]);b=[b[0]+(a[0]-b[0])*t,b[1]+(a[1]-b[1])*t,NEAR];}
+  const pa=proj(a),pb=proj(b);ctx.strokeStyle=col;ctx.lineCap='round';ctx.lineWidth=Math.max(1.5*DPR,cam.F*wYd/((a[2]+b[2])/2));ctx.beginPath();ctx.moveTo(pa[0],pa[1]);ctx.lineTo(pb[0],pb[1]);ctx.stroke();}
+// Text painted flat onto a plane given three corners (top-left, top-right, bottom-left).
+function textQuad(txt,TL,TR,BL,aspect,col){const a=projW(TL[0],TL[1],TL[2]),b=projW(TR[0],TR[1],TR[2]),c=projW(BL[0],BL[1],BL[2]);if(!a||!b||!c)return;const uw=100*aspect;
+  ctx.setTransform((b[0]-a[0])/uw,(b[1]-a[1])/uw,(c[0]-a[0])/100,(c[1]-a[1])/100,a[0],a[1]);ctx.fillStyle=col;ctx.font='700 92px '+FONT_D;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(txt,uw/2,54,uw*0.96);ctx.setTransform(1,0,0,1,0,0);}
+
+// matrices: 3x3 row-major + translation
+function mT(x,y,z){return [1,0,0,0,1,0,0,0,1,x,y,z];}
+function mRX(a){const c=Math.cos(a),s=Math.sin(a);return [1,0,0,0,c,-s,0,s,c,0,0,0];}
+function mRY(a){const c=Math.cos(a),s=Math.sin(a);return [c,0,s,0,1,0,-s,0,c,0,0,0];}
+function mRZ(a){const c=Math.cos(a),s=Math.sin(a);return [c,-s,0,s,c,0,0,0,1,0,0,0];}
+function mMul(A,B){return [
+  A[0]*B[0]+A[1]*B[3]+A[2]*B[6],A[0]*B[1]+A[1]*B[4]+A[2]*B[7],A[0]*B[2]+A[1]*B[5]+A[2]*B[8],
+  A[3]*B[0]+A[4]*B[3]+A[5]*B[6],A[3]*B[1]+A[4]*B[4]+A[5]*B[7],A[3]*B[2]+A[4]*B[5]+A[5]*B[8],
+  A[6]*B[0]+A[7]*B[3]+A[8]*B[6],A[6]*B[1]+A[7]*B[4]+A[8]*B[7],A[6]*B[2]+A[7]*B[5]+A[8]*B[8],
+  A[0]*B[9]+A[1]*B[10]+A[2]*B[11]+A[9],A[3]*B[9]+A[4]*B[10]+A[5]*B[11]+A[10],A[6]*B[9]+A[7]*B[10]+A[8]*B[11]+A[11]];}
+function mApply(M,x,y,z){return [M[0]*x+M[1]*y+M[2]*z+M[9],M[3]*x+M[4]*y+M[5]*z+M[10],M[6]*x+M[7]*y+M[8]*z+M[11]];}
+
+const LIGHT=(()=>{const v=[0.35,0.85,-0.4],l=Math.hypot(v[0],v[1],v[2]);return v.map(x=>x/l);})();
+const shadeCache=new Map();
+function shade(hex,k){const q=Math.round(k*16),key=hex+q;let v=shadeCache.get(key);if(v)return v;const n=parseInt(hex.slice(1),16),f=q/16;
+  v='rgb('+Math.min(255,Math.round((n>>16&255)*f))+','+Math.min(255,Math.round((n>>8&255)*f))+','+Math.min(255,Math.round((n&255)*f))+')';shadeCache.set(key,v);return v;}
+function lum(hex){const n=parseInt(hex.slice(1),16);return (0.299*(n>>16&255)+0.587*(n>>8&255)+0.114*(n&255))/255;}
+function colDist(a,b){const x=parseInt(a.slice(1),16),y=parseInt(b.slice(1),16);return Math.hypot((x>>16&255)-(y>>16&255),(x>>8&255)-(y>>8&255),(x&255)-(y&255));}
+// faces: corner indices (bit0=x, bit1=y, bit2=z) and outward normal
+const BOXF=[[1,3,7,5,1,0,0],[0,2,6,4,-1,0,0],[2,3,7,6,0,1,0],[4,5,7,6,0,0,1],[0,1,3,2,0,0,-1]];
+function addBox(M,cx,cy,cz,hx,hy,hz,col,lab){const P=[],Sc=[];
+  for(let i=0;i<8;i++){const x=cx+(i&1?hx:-hx),y=cy+(i&2?hy:-hy),z=cz+(i&4?hz:-hz);
+    const wx=M[0]*x+M[1]*y+M[2]*z+M[9],wy=M[3]*x+M[4]*y+M[5]*z+M[10],wz=M[6]*x+M[7]*y+M[8]*z+M[11];
+    const c=toCam(wx,wy,wz);if(c[2]<NEAR)return;const k=cam.F/c[2];P.push([wx,wy,wz]);Sc.push([cam.cx+c[0]*k,cam.cy-c[1]*k,c[2]]);}
+  for(let f=0;f<5;f++){const F=BOXF[f];
+    const nx=M[0]*F[4]+M[1]*F[5]+M[2]*F[6],ny=M[3]*F[4]+M[4]*F[5]+M[5]*F[6],nz=M[6]*F[4]+M[7]*F[5]+M[8]*F[6];
+    const a=P[F[0]],b=P[F[2]];
+    if(((a[0]+b[0])/2-cam.x)*nx+((a[1]+b[1])/2-cam.y)*ny+((a[2]+b[2])/2-cam.z)*nz>=0)continue;
+    const br=0.6+0.4*Math.max(0,nx*LIGHT[0]+ny*LIGHT[1]+nz*LIGHT[2]);
+    const s0=Sc[F[0]],s1=Sc[F[1]],s2=Sc[F[2]],s3=Sc[F[3]];
+    faces.push({d:(s0[2]+s1[2]+s2[2]+s3[2])/4,p:[s0,s1,s2,s3],c:shade(col,br),lab:(lab&&f>=3)?lab:null,lc:f===3?[Sc[7],Sc[6],Sc[5]]:f===4?[Sc[2],Sc[3],Sc[0]]:null});}}
+function flushFaces(){faces.sort((a,b)=>b.d-a.d);ctx.lineWidth=0.8;ctx.lineJoin='round';
+  for(const f of faces){const p=f.p;ctx.beginPath();ctx.moveTo(p[0][0],p[0][1]);ctx.lineTo(p[1][0],p[1][1]);ctx.lineTo(p[2][0],p[2][1]);ctx.lineTo(p[3][0],p[3][1]);ctx.closePath();
+    ctx.fillStyle=f.c;ctx.fill();ctx.strokeStyle=f.c;ctx.stroke();
+    if(f.lab){const a=f.lc[0],b=f.lc[1],c=f.lc[2];if(Math.hypot(b[0]-a[0],b[1]-a[1])>9*DPR){
+      ctx.setTransform((b[0]-a[0])/100,(b[1]-a[1])/100,(c[0]-a[0])/100,(c[1]-a[1])/100,a[0],a[1]);ctx.fillStyle=f.lab.col;ctx.font='700 66px '+FONT_D;ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(f.lab.t,50,52,92);ctx.setTransform(1,0,0,1,0,0);}}}
+  faces.length=0;}
+
+// ===== stadium and field =====
+function buildCrowd(T){crowd=[];const cols=[T.c1,T.c2,'#e9e9e9','#d8b48a','#2b2f36','#9aa6b4',T.c1];
+  for(let i=0;i<900;i++){const tier=rint(0,3),u=Math.random(),col=pick(cols);let x,z;const y=1.3+tier*3.2+u*3,r=Math.random();
+    if(r<0.2){x=rnd(-44,44);z=128+tier*5+u*5;}else if(r<0.4){x=rnd(-44,44);z=-28-tier*5-u*5;}else{x=(Math.random()<0.5?-1:1)*(33+tier*5+u*5);z=rnd(-28,128);}
+    crowd.push([x,y,z,col]);}
+  crowd.sort((a,b)=>a[3]<b[3]?-1:a[3]>b[3]?1:0);}
+function drawBackdrop(T){const hz=cam.cy-cam.F*Math.tan(cam.pitch);const g=ctx.createLinearGradient(0,0,0,Math.max(1,hz));
+  g.addColorStop(0,'#5fa8e6');g.addColorStop(1,'#d2e8f8');ctx.fillStyle=g;ctx.fillRect(0,0,W,hz+1);ctx.fillStyle='#2f5f3c';ctx.fillRect(0,hz,W,H-hz);
+  const tc=['#3a4350','#444e5c','#3a4350','#4b5666'],rim=lum(T.c2)>0.9?T.c1:T.c2;
+  for(const e of [[128,1],[-28,-1]]){const z0=e[0],s=e[1];if(z0-cam.z<NEAR)continue;
+    poly3([[-45,0,z0],[45,0,z0],[45,1.2,z0],[-45,1.2,z0]],'#20262d');
+    for(let i=3;i>=0;i--)poly3([[-45,1.2+i*3.2,z0+s*i*5],[45,1.2+i*3.2,z0+s*i*5],[45,4.4+i*3.2,z0+s*(i*5+5)],[-45,4.4+i*3.2,z0+s*(i*5+5)]],tc[i]);
+    poly3([[-45,14,z0+s*20],[45,14,z0+s*20],[45,16.4,z0+s*20],[-45,16.4,z0+s*20]],T.c1);}
+  for(const s of [-1,1]){poly3([[s*33,0,-40],[s*33,0,140],[s*33,1.2,140],[s*33,1.2,-40]],'#20262d');
+    for(let i=3;i>=0;i--)poly3([[s*(33+i*5),1.2+i*3.2,-50],[s*(33+i*5),1.2+i*3.2,150],[s*(38+i*5),4.4+i*3.2,150],[s*(38+i*5),4.4+i*3.2,-50]],tc[i]);
+    poly3([[s*53,14,-50],[s*53,14,150],[s*53,16.4,150],[s*53,16.4,-50]],rim);}
+  let last='';for(const c of crowd){const p=projW(c[0],c[1],c[2]);if(!p||p[2]>190)continue;if(c[3]!==last){ctx.fillStyle=c[3];last=c[3];}
+    const sz=Math.max(1.6*DPR,cam.F*0.5/p[2]);ctx.fillRect(p[0]-sz/2,p[1]-sz,sz,sz*1.3);}}
+function drawField(T){gquad(-31,-14,31,114,'#2e7a3a');
+  for(let i=0;i<20;i++)gquad(-FW,i*5,FW,i*5+5,i%2?'#3f9145':'#47a04c');
+  gquad(-FW,-10,FW,0,T.c1);gquad(-FW,100,FW,110,T.c1);
+  const wl='#f4f6f2';gquad(-FW-0.7,-10.7,-FW,110.7,wl);gquad(FW,-10.7,FW+0.7,110.7,wl);gquad(-FW,-10.7,FW,-10,wl);gquad(-FW,110,FW,110.7,wl);
+  for(let z=0;z<=100;z+=5){const w=(z===0||z===100)?0.22:0.1;gquad(-FW,z-w,FW,z+w,'rgba(255,255,255,.88)');}
+  ctx.beginPath();
+  for(let z=1;z<100;z++){if(z%5===0)continue;const dz=z-cam.z;if(dz<2||dz>75)continue;
+    for(const sg of [[-FW,-FW+0.7],[-3.4,-2.7],[2.7,3.4],[FW-0.7,FW]]){const a=projW(sg[0],0,z),b=projW(sg[1],0,z);if(a&&b){ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}}}
+  ctx.strokeStyle='rgba(255,255,255,.7)';ctx.lineWidth=Math.max(1,DPR);ctx.stroke();
+  for(let yl=10;yl<=90;yl+=10){const dz=yl-cam.z;if(dz<4||dz>85)continue;const n=String(yl<=50?yl:100-yl),t=n[0]+' '+n[1],c='rgba(255,255,255,.85)';
+    textQuad(t,[-15.2,0,yl+3.2],[-15.2,0,yl-3.2],[-17.6,0,yl+3.2],2.67,c);
+    textQuad(t,[15.2,0,yl-3.2],[15.2,0,yl+3.2],[17.6,0,yl-3.2],2.67,c);}
+  const ec=lum(T.c1)>0.5?'#16181c':(lum(T.c2)>0.35?T.c2:'#ffffff'),name=T.name.toUpperCase();
+  textQuad(name,[-20,0,108.3],[20,0,108.3],[-20,0,101.7],6.06,ec);textQuad(name,[-20,0,-1.7],[20,0,-1.7],[-20,0,-8.3],6.06,ec);}
+function addPosts(z){const M=mT(0,0,z),c='#f0cf2e';addBox(M,0,1.67,0,0.1,1.67,0.1,c);addBox(M,0,3.38,0,3.14,0.09,0.09,c);addBox(M,-3.08,8.4,0,0.08,5,0.08,c);addBox(M,3.08,8.4,0,0.08,5,0.08,c);}
+
+// ===== low-poly player: 15 boxes on a jointed skeleton =====
+function drawPlayer(e){const p=e.pose,k=e.kit;
+  const hip=Math.max(0.5*Math.cos(p.lTh)+0.5*Math.cos(p.lTh-p.lKn),0.5*Math.cos(p.rTh)+0.5*Math.cos(p.rTh-p.rKn))+0.07;
+  const R=mMul(mT(RX(e.x),p.hop+p.fall*0.2,RZ(e.z)),mMul(mRY(e.dir+(FLIP?Math.PI:0)),mRX(p.fall*1.5*e.fallDir)));
+  for(const s of [-1,1]){const th=s<0?p.lTh:p.rTh,kn=s<0?p.lKn:p.rKn;
+    const Mt=mMul(R,mMul(mT(s*0.16,hip,0),mRX(-th)));addBox(Mt,0,-0.25,0,0.12,0.27,0.13,k.pants);
+    const Ms=mMul(Mt,mMul(mT(0,-0.5,0),mRX(kn)));addBox(Ms,0,-0.24,0,0.1,0.25,0.1,k.socks);addBox(Ms,0,-0.5,0.07,0.1,0.06,0.17,k.shoes);}
+  const U=mMul(R,mMul(mT(0,hip,0),mRX(p.lean)));
+  addBox(U,0,0.32,0,0.31,0.32,0.19,k.jersey,{t:e.num,col:k.num});
+  addBox(U,0,0.67,0,0.46,0.11,0.24,k.pads);
+  const Hd=mMul(U,mMul(mT(0,0.78,0),mRX(-p.lean*0.6)));
+  addBox(Hd,0,0.22,0.02,0.21,0.21,0.23,k.helmet);addBox(Hd,0,0.16,0.25,0.15,0.1,0.03,'#22262b');addBox(Hd,0,0.44,0.02,0.04,0.012,0.23,k.stripe);
+  for(const s of [-1,1]){const ar=s<0?p.lArm:p.rArm,el=s<0?p.lEl:p.rEl;
+    const Ma=mMul(U,mMul(mT(s*0.5,0.68,0),mMul(mRZ(s*p.spread),mRX(-ar))));addBox(Ma,0,-0.19,0,0.085,0.2,0.085,k.sleeve);
+    const Mf=mMul(Ma,mMul(mT(0,-0.38,0),mRX(-el)));addBox(Mf,0,-0.18,0,0.075,0.19,0.075,e.skin);}
+  e.R=R;e.hip=hip;}
+function ring(x,z,rYd,col,lw){const s=projW(RX(x),0.02,RZ(z));if(!s)return;const r=cam.F*rYd/s[2];ctx.beginPath();ctx.ellipse(s[0],s[1],r,r*0.42,0,0,6.2832);ctx.strokeStyle=col;ctx.lineWidth=lw*DPR;ctx.stroke();}
+
+function renderGame(){const g=gm;if(!g||!ctx)return;setCam();ctx.setTransform(1,0,0,1,0,0);
+  drawBackdrop(g.home);drawField(g.home);
+  const live=g.phase==='live',uo=g.poss==='U';
+  if(g.ents.length&&g.phase!=='card'){const lz=RZ(g.pos),fz=RZ(g.pos+g.toGo);gquad(-FW,lz-0.13,FW,lz+0.13,'rgba(46,110,255,.8)');if(g.pos+g.toGo<100)gquad(-FW,fz-0.13,FW,fz+0.13,'rgba(244,196,48,.9)');}
+  if(g.phase==='presnap'&&uo)for(const e of g.elig){let px=e.x,pz=e.z;for(const w of e.route){gline(px,pz,w.x,w.z,0.2,'rgba(244,196,48,.85)');px=w.x;pz=w.z;}ring(px,pz,0.5,'rgba(244,196,48,.9)',2);}
+  ctx.fillStyle='rgba(0,0,0,.26)';
+  for(const e of g.ents){const s=projW(RX(e.x),0,RZ(e.z));if(!s)continue;const r=cam.F*0.55/s[2];ctx.beginPath();ctx.ellipse(s[0],s[1],r,r*0.4,0,0,6.2832);ctx.fill();}
+  const b=g.ball;
+  for(const e of g.ents)if(e.zone&&!e.down){ring(e.x,e.z,0.62,'rgba(255,214,64,.95)',2);ring(e.x,e.z,0.95,'rgba(255,214,64,.55)',1.5);}
+  if(live){const u=uo?(g.carrier||(b&&b.fly?b.target:null)):g.ctl;if(u)ring(u.x,u.z,0.85,uo?'rgba(244,196,48,.95)':'rgba(90,200,255,.95)',2.5);
+    if(b&&b.fly){ring(b.land.x,b.land.z,0.9,'rgba(255,255,255,.9)',2);ring(b.land.x,b.land.z,0.35,'rgba(255,255,255,.9)',2);}}
+  else if(!uo&&g.ctl&&g.phase==='presnap')ring(g.ctl.x,g.ctl.z,0.85,'rgba(90,200,255,.95)',2.5);
+  for(const e of g.ents)drawPlayer(e);
+  if(b){let bx,by,bz,yaw=0,pit=0;
+    if(b.held&&b.held.R){const h=b.held;const w=h.anim==='carry'?mApply(h.R,0.3,h.hip+0.3,0.22):mApply(h.R,0.05,h.hip+0.45,0.3);bx=w[0];by=w[1];bz=w[2];yaw=h.dir+(FLIP?Math.PI:0);}
+    else if(!b.held){bx=RX(b.x);by=b.y;bz=RZ(b.z);yaw=Math.atan2(RX(b.vx),FLIP?-b.vz:b.vz);pit=-Math.atan2(b.vy,Math.hypot(b.vx,b.vz)||1);}
+    if(bx!==undefined)addBox(mMul(mT(bx,by,bz),mMul(mRY(yaw),mRX(pit))),0,0,0,0.085,0.085,0.17,'#7a4a26');}
+  addPosts(110);addPosts(-10);flushFaces();
+  ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='700 '+Math.round(15*DPR)+'px '+FONT_D;
+  if(uo&&((live&&g.mode==='pocket'&&!g.throwing)||g.phase==='presnap')){
+    for(const e of g.elig){const s=projW(e.x,2.8,e.z);e.sx=null;if(!s)continue;e.sx=s[0];e.sy=s[1];const dn=openness(e);
+      const col=g.phase==='presnap'?'#f4c430':dn>3.2?'#4cc47a':dn>1.7?'#f4c430':'#e5604f',r=11*DPR;
+      ctx.beginPath();ctx.arc(s[0],s[1]-r,r,0,6.2832);ctx.fillStyle=col;ctx.fill();ctx.lineWidth=2*DPR;ctx.strokeStyle='rgba(0,0,0,.55)';ctx.stroke();ctx.fillStyle='#141a12';ctx.fillText(String(e.key),s[0],s[1]-r+DPR);}}
+  else for(const e of g.elig)e.sx=null;
+  if(!uo&&g.ctl&&(live||g.phase==='presnap')){const s=projW(RX(g.ctl.x),2.7,RZ(g.ctl.z));if(s){const r=8*DPR;ctx.beginPath();ctx.moveTo(s[0]-r,s[1]-r*1.6);ctx.lineTo(s[0]+r,s[1]-r*1.6);ctx.lineTo(s[0],s[1]);ctx.closePath();ctx.fillStyle='#5ac8ff';ctx.fill();ctx.lineWidth=2*DPR;ctx.strokeStyle='rgba(0,0,0,.55)';ctx.stroke();}}}
+
+// ===== the match: you run the offense, and (optionally) control a defender when the other team has the ball =====
+const QLEN=240;
+const SKINS=['#f0c7a2','#d8a374','#b87a50','#8e5a3a','#6c4327','#52331f'];
+// routes: [toward own sideline (+) or middle (-), depth, stop?] from the receiver's spot
+const PLAYS=[
+ {n:'Slants',t:'pass',d:'Quick throws inside',r:{WR1:[[0,2],[-8,9],[-16,16]],WR2:[[0,2],[-8,9],[-16,16]],WR3:[[0,6],[-0.5,5,1]],TE:[[0,4],[8,5],[14,5]],RB:[[5,0.5],[10,3]]}},
+ {n:'Verticals',t:'pass',d:'Four deep shots',r:{WR1:[[0,45]],WR2:[[0,45]],WR3:[[-1,45]],TE:[[1,40]],RB:[[5,0.5],[9,2,1]]}},
+ {n:'Mesh',t:'pass',d:'Crossers underneath',r:{WR1:[[0,3],[-28,6]],WR2:[[0,12],[-16,12]],WR3:[[0,9],[9,20]],TE:[[0,5],[-16,7]],RB:[[6,0],[11,3]]}},
+ {n:'Deep Post',t:'pass',d:'Big play over the middle',r:{WR1:[[0,14],[-11,32]],WR2:[[0,16],[2,13,1]],WR3:[[0,8],[9,8]],TE:[[0,3],[-10,5]],RB:[[5,0.5],[10,3]]}},
+ {n:'Curls',t:'pass',d:'Sit down at the sticks',r:{WR1:[[0,12],[-1.5,10,1]],WR2:[[0,12],[-1.5,10,1]],WR3:[[6,2],[8,26]],TE:[[0,7],[0,6,1]],RB:[[-5,0.5],[-10,3]]}},
+ {n:'Inside Zone',t:'run',d:'Hit the hole up the middle'},
+ {n:'Outside Toss',t:'run',toss:1,d:'Race to the edge'}];
+const DCALLS=[{n:'Man Cover',d:'Balanced. One linebacker watches the middle.'},{n:'Blitz',d:'Send two linebackers. Fast pressure, thin coverage.'},{n:'Deep Zone',d:'Both safeties stay deep. Gives up short throws.'}];
+let gm=null,rafOn=false,lastTs=0,hudStr='',flashT=0;
+const inp={k:{},kx:0,kz:0,sx:0,sz:0,stick:null};
+const dist=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
+const isOL=e=>e.role==='LT'||e.role==='LG'||e.role==='C'||e.role==='RG'||e.role==='RT';
+const uoff=()=>gm.poss==='U';
+
+function makeKit(T,key){const u=UNI[T.abbr][key]||UNI[T.abbr].H,j=u[0],p=u[2];
+  return {jersey:j,pads:j,sleeve:j,num:u[1],pants:p,socks:lum(j)>0.8?(lum(p)>0.8?u[4]:p):j,helmet:u[3],stripe:u[4],shoes:'#18191b'};}
+function lineup(T){const s=p=>starters(T,p);return {QB:s('QB')[0],RB:s('RB')[0],WR:s('WR'),TE:s('TE')[0],OL:s('OL'),K:s('K')[0],DL:s('DL'),LB:s('LB'),CB:s('CB'),S:s('S')};}
+function mkEnt(side,team,role,rp,x,z,kit,stance){const zs=gm.zone[rp.id];
+  return {side,team,role,rp,x,z:Math.min(z,108),vx:0,vz:0,dir:side==='O'?0:Math.PI,max:5.2+(rp.spd-50)*0.07,kit,skin:SKINS[rp.id%SKINS.length],num:String(rp.num),
+  zone:!!rp.xf&&(rp.pos==='OL'||!!(zs&&zs.on)),
+  pose:{lean:0,lTh:0,rTh:0,lKn:0,rKn:0,lArm:0,rArm:0,lEl:0,rEl:0,fall:0,hop:0,spread:0.12},ph:Math.random()*6,anim:'idle',animT:0,stance,down:false,stun:0,eng:null,engT:0,shedAt:0,freeUntil:0,tklCd:0,fallDir:1,
+  face:null,route:null,wp:0,cutT:-9,blk:null,beat:0,juke:0,jukeCd:0,slow:0,cover:null,cush:0,lag:0.2,react:0.25,blitz:false,dbl:false,deepSide:null,deepCush:false,zx:null,lunge:0,lx:0,lz:0,key:0,sx:null,sy:0,R:null,hip:1};}
+
+function startGame(opp,userHome,uU,uO){const U=S.teams[S.user];
+  gm={U,O:opp,userHome,home:userHome?U:opp,us:0,them:0,q:1,clock:QLEN,exp:false,poss:'U',pos:25,down:1,toGo:10,bx:0,phase:'huddle',ents:[],by:{},elig:[],ball:null,carrier:null,ctl:null,t:0,mode:'pocket',
+    play:PLAYS[0],dcall:0,after:null,card:null,kick:null,msg:'',zmsg:'',zone:{},playDef:!!S.playDef,camSnap:true,
+    st:{att:0,cmp:0,yds:0,td:0,int:0,rush:0,sk:0,dSk:0,dInt:0,dYds:0},kitU:makeKit(U,uU),kitO:makeKit(opp,uO),LU:lineup(U),LO:lineup(opp)};
+  buildCrowd(gm.home);startDrive('U',25);showGame();}
+function startDrive(side,pos){gm.poss=side;FLIP=side==='A';gm.camSnap=true;gm.pos=clamp(Math.round(pos),1,99);gm.down=1;gm.toGo=Math.min(10,100-gm.pos);gm.bx=0;setHuddle();
+  if(gm&&gm.phase==='huddle'&&gm.playDef)flash(side==='A'?'Defense':'Offense');}
+function setHuddle(){if(gm.poss==='A'){if(aiFourth())return;setFormation(aiPlay());}else setFormation(gm.play);gm.phase='huddle';renderPanel();}
+function callPlay(i){if(!gm||gm.phase!=='huddle'||!uoff())return;setFormation(PLAYS[i]);gm.phase='presnap';renderPanel();}
+function callDef(i){if(!gm||gm.phase!=='huddle'||uoff())return;gm.dcall=i;gm.phase='presnap';renderPanel();}
+function aiPlay(){const d=gm.down,tg=gm.toGo;let pp=0.56;if(d>=3&&tg>=6)pp=0.88;else if(tg<=2)pp=0.35;else if(d===2&&tg>=8)pp=0.7;
+  if(gm.q>=4&&gm.them<gm.us)pp=Math.max(pp,0.75);
+  if(Math.random()<pp)return PLAYS[pick(tg>=12?[1,3,4,2]:tg<=4?[0,2,4]:[0,1,2,3,4])];return PLAYS[Math.random()<0.6?5:6];}
+function buildRoute(e,wps){const sg=(e.x-gm.bx)>=0?1:-1;
+  const pts=wps.map(w=>({x:clamp(e.x+w[0]*sg,-25.3,25.3),z:Math.min(108.5,e.z+w[1]),stop:!!w[2]}));const last=pts[pts.length-1];
+  if(!last.stop){const prev=pts.length>1?pts[pts.length-2]:{x:e.x,z:e.z};let dx=last.x-prev.x,dz=last.z-prev.z;const l=Math.hypot(dx,dz)||1;dx/=l;dz/=l;let k=40;
+    if(dx>0.01)k=Math.min(k,(25.3-last.x)/dx);if(dx<-0.01)k=Math.min(k,(-25.3-last.x)/dx);if(dz>0.01)k=Math.min(k,(108.5-last.z)/dz);if(dz<-0.01)k=Math.min(k,(last.z-(gm.pos-3))/-dz);
+    if(k>0.6)pts.push({x:last.x+dx*k,z:last.z+dz*k,stop:true});else last.stop=true;}
+  return pts;}
+function setFormation(play){const z0=gm.pos,bx=gm.bx,uo=uoff(),Lo=uo?gm.LU:gm.LO,Ld=uo?gm.LO:gm.LU,ko=uo?gm.kitU:gm.kitO,kd=uo?gm.kitO:gm.kitU,to=uo?'U':'A',td=uo?'A':'U',E=[],by={};gm.ents=E;gm.by=by;gm.play=play;
+  const add=(side,role,rp,x,z,st)=>{const e=mkEnt(side,side==='O'?to:td,role,rp,x,z,side==='O'?ko:kd,st);E.push(e);by[role]=e;return e;};
+  ['LT','LG','C','RG','RT'].forEach((r,i)=>add('O',r,Lo.OL[i],bx+(i-2)*1.45,z0-0.7,'s3'));
+  add('O','TE',Lo.TE,bx+4.5,z0-0.7,'s3');add('O','WR1',Lo.WR[0],-19,z0-0.6,'s2');add('O','WR2',Lo.WR[1],19,z0-1,'s2');add('O','WR3',Lo.WR[2],bx-9.5,z0-1,'s2');
+  add('O','QB',Lo.QB,bx,z0-5,'qb');add('O','RB',Lo.RB,bx+(play.toss?3.6:1.8),z0-5.3,'s2');
+  [-4.3,-1.45,1.45,4.3].forEach((x,i)=>add('D','DL'+(i+1),Ld.DL[i],bx+x,z0+0.9,'s3'));
+  add('D','LB1',Ld.LB[0],bx-5,z0+4.5,'s2');add('D','LB2',Ld.LB[1],bx,z0+4.8,'s2');add('D','LB3',Ld.LB[2],bx+5.5,z0+4.5,'s2');
+  add('D','CB1',Ld.CB[0],-18.4,z0+5.5,'s2');add('D','CB2',Ld.CB[1],18.4,z0+5.5,'s2');add('D','SS',Ld.S[0],bx-9,z0+6.5,'s2');add('D','FS',Ld.S[1],bx+2,z0+14,'s2');
+  gm.elig=[];
+  if(play.t==='pass'){for(const r in play.r){by[r].route=buildRoute(by[r],play.r[r]);gm.elig.push(by[r]);}
+    gm.elig.sort((a,b)=>a.x-b.x).forEach((e,i)=>{e.key=i+1;});}
+  gm.ball={held:by.QB};gm.carrier=null;gm.ctl=uo?null:by.LB2;}
+function snap(){if(!gm||gm.phase!=='presnap')return;const by=gm.by,play=gm.play,uo=uoff(),k=dk();gm.phase='live';gm.t=0;gm.handed=false;gm.scr=false;gm.caught=false;gm.thrownAt=null;gm.throwing=null;gm.swatT=null;gm.tkBy=null;gm.intBy=null;
+  gm.carrier=by.QB;gm.ball={held:by.QB};gm.mode='pocket';gm.aiDec=rnd(1.5,2.4)-0.1*k;gm.aiAware=Math.random()<0.55+0.15*k;
+  let call=gm.dcall;if(uo){const r=Math.random();call=r<0.16+0.03*k?1:(r<0.32&&gm.toGo>=8?2:0);}
+  for(const m of [['CB1','WR1'],['CB2','WR2'],['SS','WR3'],['LB3','TE'],['LB2','RB']])by[m[0]].cover=by[m[1]];
+  by.FS.deepSide=0;by.LB1.zx=by.LB1.x-gm.bx;
+  if(call===1){by.LB1.blitz=play.t==='pass'||!uo;if(!uo||k>=1){by.LB2.blitz=true;by.LB2.cover=null;}}
+  else if(call===2){by.SS.cover=null;by.SS.deepSide=-1;by.FS.deepSide=1;by.LB1.cover=by.WR3;by.CB1.deepCush=by.CB2.deepCush=true;by.SS.z+=5;by.CB1.z+=2;by.CB2.z+=2;}
+  for(const e of gm.ents){e.react=0.3+(92-e.rp.ovr)/120;
+    if(e.cover){e.cush=e.z-e.cover.z;e.lag=clamp(0.42-e.rp.ovr/300-(e.zone&&e.rp.pos==='CB'?0.1:0)+(uo?-0.04:0.04)*k,0.02,0.4);}}
+  by.LT.blk=by.DL1;by.LG.blk=by.DL2;by.RG.blk=by.DL3;by.RT.blk=by.DL4;
+  if(play.t==='pass'){by.C.blk=by.LB1.blitz?by.LB1:by.DL2;by.DL2.dbl=!by.LB1.blitz;}
+  else{by.C.blk=by.LB2;by.TE.blk=by.LB3;by.WR1.blk=by.CB1;by.WR2.blk=by.CB2;by.WR3.blk=by.SS;}
+  inp.sx=inp.sz=0;inp.stick=null;renderPanel();}
+
+// ----- movement -----
+function accel(e,wx,wz,dt){const ax=wx-e.vx,az=wz-e.vz,l=Math.hypot(ax,az),m=24*dt;if(l<=m){e.vx=wx;e.vz=wz;}else{e.vx+=ax/l*m;e.vz+=az/l*m;}}
+function seek(e,tx,tz,sp,dt){const dx=tx-e.x,dz=tz-e.z,l=Math.hypot(dx,dz);if(l>0.12){const s=Math.min(sp,l*7);accel(e,dx/l*s,dz/l*s,dt);}else accel(e,0,0,dt);}
+function runRoute(e,dt){const r=e.route;if(e.wp>=r.length){accel(e,0,0,dt);e.face=gm.by.QB;return;}
+  let w=r[e.wp];let dx=w.x-e.x,dz=w.z-e.z,l=Math.hypot(dx,dz);
+  if(l<0.55){e.wp++;e.cutT=gm.t;if(e.wp>=r.length){accel(e,0,0,dt);return;}w=r[e.wp];dx=w.x-e.x;dz=w.z-e.z;l=Math.hypot(dx,dz)||1;}
+  if(w.stop&&e.wp===r.length-1)seek(e,w.x,w.z,e.max,dt);else accel(e,dx/l*e.max,dz/l*e.max,dt);}
+function predictPos(e,T){let x=e.x,z=e.z,wp=e.wp;const r=e.route;if(!r)return {x:x+e.vx*T,z:z+e.vz*T};let rem=T*e.max*0.96;
+  while(rem>0&&wp<r.length){const w=r[wp],d=Math.hypot(w.x-x,w.z-z);if(d<=rem){x=w.x;z=w.z;rem-=d;wp++;}else{x+=(w.x-x)/d*rem;z+=(w.z-z)/d*rem;rem=0;}}
+  return {x,z};}
+function userInput(){let ix=inp.kx+inp.sx,iz=inp.kz+inp.sz;if(FLIP){ix=-ix;iz=-iz;}const l=Math.hypot(ix,iz);if(l>1){ix/=l;iz/=l;}return [ix,iz,l];}
+function control(e,dt,mode){const [ix0,iz0,l]=userInput();let ix=ix0,iz=iz0;
+  if(e===gm.by.QB&&gm.play.t==='run'){accel(e,0,0,dt);return;}
+  let sp=e.max*(mode==='pocket'?0.8:0.93);if(e.slow>gm.t)sp*=0.5;
+  if(l<0.1){if(mode==='pocket'){accel(e,0,0,dt);e.face={x:e.x,z:e.z+10};return;}ix=0;iz=1;}
+  accel(e,ix*sp,iz*sp,dt);
+  if(mode==='pocket')e.face=gm.throwing?gm.throwing.rec:{x:e.x+ix*3,z:e.z+10};}
+function juke(){const c=gm&&gm.carrier;if(!c||gm.phase!=='live'||!uoff()||gm.mode!=='run'||c.jukeCd>gm.t)return;c.juke=gm.t+0.34;c.jukeCd=gm.t+2.4;
+  const ix=inp.kx+inp.sx;c.vx+=(ix>0.2?1:ix<-0.2?-1:(Math.random()<0.5?1:-1))*8;}
+function blockDur(b,d){const diff=(b.rp.ovr-d.rp.ovr)/55;let base;
+  if(gm.play.t==='pass'&&gm.mode==='pocket'&&isOL(b))base=2.5+Math.random()*2.5+(d.dbl?0.9:0);
+  else if(isOL(b))base=1.0+Math.random()*1.7;else if(b.role==='TE')base=1.0+Math.random()*1.2;else base=0.5+Math.random()*0.9;
+  base*=1+(b.team==='U'?-0.1:0.1)*dk();if(b.zone&&b.rp.pos==='OL')base*=1.3;if(d.zone&&d.rp.pos==='DL')base*=0.65;
+  return Math.max(0.5,base*(1+diff));}
+function doBlock(e,dt,prot){const t=gm.t;let d=e.blk;
+  if(!d||d.down||(d.eng&&d.eng!==e)||(d.freeUntil>t&&d.eng!==e)){d=null;let best=6;
+    for(const x of gm.ents){if(x.side!=='D'||x.down||x.eng||x.freeUntil>t)continue;const dd=dist(e,x);if(dd<best){best=dd;d=x;}}e.blk=d;}
+  if(!d){accel(e,0,0,dt);return;}
+  const px=prot.x-d.x,pz=prot.z-d.z,l=Math.hypot(px,pz)||1;
+  seek(e,d.x+px/l*0.95,d.z+pz/l*0.95,e.max*(e.beat>t?0.4:0.92),dt);
+  if(!d.eng&&d.freeUntil<=t&&dist(e,d)<1.3){d.eng=e;d.engT=t;d.shedAt=t+blockDur(e,d);}
+  if(dist(e,d)<2.2){e.anim='block';e.face=d;}else if(e.anim==='block')e.anim='idle';}
+function cover(d,dt){const r=d.cover,t=gm.t;if(r.down){accel(d,0,0,dt);return;}
+  const rs=Math.hypot(r.vx,r.vz);d.cush=Math.max(d.deepCush?2.5:(rs>3?-0.7:0.8),d.cush-dt*(rs<2?7:2));
+  if(t<r.cutT+d.lag)return;
+  seek(d,r.x+r.vx*0.22,Math.min(109,r.z+r.vz*0.22+d.cush),d.max*(0.9+d.rp.ovr/1000),dt);if(d.cush>1)d.face=gm.by.QB;}
+function deep(d,dt){let dp=null;const sd=d.deepSide;for(const e of gm.elig){if(sd===1&&e.x<gm.bx)continue;if(sd===-1&&e.x>=gm.bx)continue;if(!dp||e.z>dp.z)dp=e;}
+  seek(d,dp?dp.x*(sd?0.8:0.5):gm.bx+sd*10,Math.min(108,Math.max(gm.pos+13,(dp?dp.z:0)+3)),d.max*0.95,dt);d.face=gm.by.QB;}
+function pursue(d,c,dt){const dd=dist(d,c),tt=Math.min(1.1,dd/Math.max(3,d.max));seek(d,c.x+c.vx*tt*0.85,c.z+c.vz*tt*0.85,d.max,dt);}
+function tryTackle(d,c){const t=gm.t,lg=d.lunge>t;if(d.tklCd>t||dist(d,c)>(d.eng?0.85:lg?1.6:1.12))return;d.tklCd=t+0.7;
+  const qbp=c===gm.by.QB&&gm.mode==='pocket';
+  let p=qbp?0.9:0.76+(d.rp.ovr-c.rp.ovr)/220+(c.team==='U'?0.05:-0.05)*dk();
+  if(!qbp){if(c.juke>t)p-=0.22;if(c.zone&&c.rp.pos==='RB')p-=0.18;}
+  if(d.zone&&d.rp.pos==='LB')p+=0.15;if(d===gm.ctl)p+=lg?0.18:0.1;if(d.eng)p*=0.22;
+  if(Math.random()<clamp(p,0.08,0.97)){c.down=true;c.anim='down';d.down=true;d.anim='dive';d.lunge=0;gm.tkBy=d;
+    const fx=Math.sin(c.dir),fz=Math.cos(c.dir);c.fallDir=((d.x-c.x)*fx+(d.z-c.z)*fz)>0.4?-1:1;
+    endPlay(c===gm.by.QB&&c.z<gm.pos?'sack':'tackle',c.z);}
+  else if(d.eng){c.slow=t+0.2;}else{d.stun=t+0.75;d.lunge=0;d.anim='dive';c.slow=t+0.15;flash(uoff()?'Broken tackle!':'Missed tackle');}}
+function separate(){const E=gm.ents,car=gm.carrier;
+  for(let i=0;i<E.length;i++){const a=E[i];if(a.down)continue;for(let j=i+1;j<E.length;j++){const b=E[j];if(b.down)continue;
+    if((a===car&&b.side==='D')||(b===car&&a.side==='D'))continue;const dx=b.x-a.x,dz=b.z-a.z,d2=dx*dx+dz*dz;
+    if(d2<0.64&&d2>1e-6){const d=Math.sqrt(d2),p=(0.8-d)/2,ux=dx/d,uz=dz/d;a.x-=ux*p;a.z-=uz*p;b.x+=ux*p;b.z+=uz*p;}}}}
+
+// ----- the other team's offense -----
+function nearestRusher(q){let nd=null,dn=99;for(const d of gm.ents){if(d.side!=='D'||d.down||d.eng||d.stun>gm.t)continue;const dd=dist(d,q);if(dd<dn){dn=dd;nd=d;}}return [nd,dn];}
+function aiQB(qb,dt){const t=gm.t,[nd,dn]=nearestRusher(qb);let tx=gm.bx,tz=gm.pos-7.5;
+  if(nd&&dn<4.5){tx=qb.x+(qb.x>=nd.x?1:-1)*3;tz=gm.pos-8.5;}
+  seek(qb,clamp(tx,gm.bx-7,gm.bx+7),tz,qb.max*0.7,dt);qb.face=gm.throwing?gm.throwing.rec:{x:qb.x,z:qb.z+10};
+  if(gm.throwing)return;const hot=gm.aiAware&&dn<2.2&&t>1.0;
+  if(t<gm.aiDec&&!hot)return;
+  let best=null,bs=-9,bo=0;for(const e of gm.elig){const o=openness(e),dp=e.z-gm.pos,sc=Math.min(o,5)+dp*0.07+(dp>=gm.toGo?0.8:0)+rnd(-0.6,0.6);if(sc>bs){bs=sc;best=e;bo=o;}}
+  if(bo>1.7||hot||t>gm.aiDec+1.1){if(bo<0.8&&!hot){endPlay('inc',0,'Thrown away');return;}throwTo(best);}}
+function aiRun(c,dt){const t=gm.t;if(c===gm.by.QB&&gm.play.t==='run'){accel(c,0,0,dt);return;}
+  let dx=0,dz=1,nd=null,dn=99;
+  for(const d of gm.ents){if(d.side!=='D'||d.down||d.stun>t)continue;const ox=c.x-d.x,oz=c.z-d.z,dd=Math.hypot(ox,oz);
+    if(dd<7&&oz<1.5){dx+=(ox>=0?1:-1)*(7-dd)/7*1.6*(d.eng?0.4:1);if(!d.eng&&dd<dn){dn=dd;nd=d;}}}
+  if(c.x>FW-3)dx-=1.6;if(c.x<-FW+3)dx+=1.6;const l=Math.hypot(dx,dz);let sp=c.max*0.95;if(c.slow>t)sp*=0.5;
+  accel(c,dx/l*sp,dz/l*sp,dt);
+  if(nd&&dn<1.9&&c.jukeCd<=t&&Math.random()<dt*(1.5+0.6*dk())){c.juke=t+0.34;c.jukeCd=t+2.6;c.vx+=(c.x>=nd.x?1:-1)*8;}}
+
+// ----- playing defense -----
+function userDefend(d,dt){const t=gm.t,c=gm.carrier;
+  if(d.stun>t){accel(d,0,0,dt);return;}
+  if(d.lunge){if(d.lunge>t){d.vx=d.lx*d.max*1.8;d.vz=d.lz*d.max*1.8;if(c)tryTackle(d,c);return;}d.lunge=0;d.stun=t+0.7;d.vx*=0.2;d.vz*=0.2;return;}
+  if(d.eng){if(t>=Math.min(d.shedAt,(d.engT||t)+0.9)||d.eng.down){d.eng.beat=t+1.2;d.eng=null;d.freeUntil=t+3;}
+    else{accel(d,0,0,dt);d.anim='block';d.face=d.eng;if(c&&gm.mode==='run')tryTackle(d,c);return;}}
+  d.anim=gm.swatT!=null&&t-gm.swatT<0.45?'catch':'idle';
+  const [ix,iz,l]=userInput();if(l<0.1)accel(d,0,0,dt);else accel(d,ix*d.max*1.03,iz*d.max*1.03,dt);
+  if(c&&!(c===gm.by.QB&&gm.play.t==='run'&&!gm.handed))tryTackle(d,c);}
+function dive(){const d=gm&&gm.ctl;if(!d||gm.phase!=='live'||uoff()||d.down||d.stun>gm.t||d.eng||d.lunge)return;
+  const b=gm.ball;if(b&&b.fly){gm.swatT=gm.t;return;}
+  const c=gm.carrier;let dx,dz;if(c&&dist(d,c)<5){dx=c.x+c.vx*0.15-d.x;dz=c.z+c.vz*0.15-d.z;}else{dx=d.vx;dz=d.vz;}const l=Math.hypot(dx,dz);if(l<0.1)return;
+  d.lunge=gm.t+0.26;d.lx=dx/l;d.lz=dz/l;d.tklCd=0;d.anim='dive';}
+function switchCtl(){if(!gm||uoff()||(gm.phase!=='live'&&gm.phase!=='presnap'))return;const b=gm.ball,c=gm.carrier,cur=gm.ctl;
+  const tx=b&&b.fly?b.land.x:c?c.x:gm.bx,tz=b&&b.fly?b.land.z:c?c.z:gm.pos;
+  const arr=gm.ents.filter(d=>d.side==='D'&&!d.down).sort((p,q)=>Math.hypot(p.x-tx,p.z-tz)-Math.hypot(q.x-tx,q.z-tz));if(arr.length<2)return;
+  const nx=gm.phase==='presnap'?arr[(arr.indexOf(cur)+1)%arr.length]:(arr[0]===cur?arr[1]:arr[0]);if(cur)cur.lunge=0;gm.ctl=nx;}
+
+// How open a receiver is: the smaller of his gap now and his gap a beat from now.
+function openness(e){const f=predictPos(e,0.7);let dn=99;
+  for(const d of gm.ents)if(d.side==='D'&&!d.down){const a=Math.hypot(d.x-e.x,d.z-e.z),b=Math.hypot(d.x+d.vx*0.5-f.x,d.z+d.vz*0.5-f.z);dn=Math.min(dn,a,b+0.6);}
+  return dn;}
+// ----- passing -----
+function throwTo(rec){const qb=gm.by.QB;if(gm.phase!=='live'||gm.mode!=='pocket'||gm.throwing||gm.carrier!==qb)return;gm.throwing={rec,at:gm.t+0.2};qb.anim='throw';qb.animT=gm.t;}
+function releaseBall(rec){const qb=gm.by.QB,rp=qb.rp,uo=uoff(),zq=qb.zone;let T=0.6,land,d=0;
+  for(let i=0;i<4;i++){land=predictPos(rec,T);d=Math.hypot(land.x-qb.x,land.z-qb.z);T=Math.max(0.28,d/(clamp(17+d*0.32,17,27)+(rp.ovr-75)*0.08+(zq?3:0)));}
+  const pres=gm.ents.some(x=>x.side==='D'&&!x.eng&&!x.down&&dist(x,qb)<2.6),mv=Math.hypot(qb.vx,qb.vz)>2.5;
+  const sig=(0.28+d*0.022)*(1+(92-rp.ovr)/45)*(pres?1.7:1)*(mv?1.35:1)*(zq?0.6:1)*(1+(uo?0.1:-0.1)*dk());
+  land.x=clamp(land.x+gauss()*sig,-28,28);land.z+=gauss()*sig;
+  const x0=qb.x+0.3,z0=qb.z+0.3,y0=2.05,g=10.7;
+  gm.ball={fly:true,x:x0,y:y0,z:z0,t:0,T,land,target:rec,vx:(land.x-x0)/T,vz:(land.z-z0)/T,vy:(1.45-y0)/T+0.5*g*T,g};
+  gm.carrier=null;if(uo)gm.st.att++;gm.thrownAt=gm.t;
+  if(!uo&&gm.ctl){let nd=null,dn=99;for(const x of gm.ents)if(x.side==='D'&&!x.down){const dd=Math.hypot(x.x-land.x,x.z-land.z);if(dd<dn){dn=dd;nd=x;}}
+    if(nd&&nd!==gm.ctl&&Math.hypot(gm.ctl.x-land.x,gm.ctl.z-land.z)>dn+2){gm.ctl.lunge=0;gm.ctl=nd;}}}
+function resolvePass(){const b=gm.ball,rec=b.target,L=b.land,dR=Math.hypot(rec.x-L.x,rec.z-L.z),uo=uoff(),k=dk()*(uo?1:-1);let dD=99,D=null;
+  for(const x of gm.ents)if(x.side==='D'&&!x.down&&x.stun<=gm.t){const dd=Math.hypot(x.x-L.x,x.z-L.z);if(dd<dD){dD=dd;D=x;}}
+  const inb=Math.abs(L.x)<=FW-0.1&&L.z<=110&&L.z>=-10,swat=!uo&&D&&D===gm.ctl&&gm.swatT!=null&&gm.t-gm.swatT<0.5&&dD<2.2;
+  const im=(1+0.3*k)*(D&&D.zone&&D.rp.pos==='S'?2.5:1)*(swat?3:1);let out;
+  if(dR<=1.6&&inb){const pInt=clamp((dD<1.0?(dD<dR?0.12:0.03):swat?0.05:0)*im,0,0.6),hands=rec.rp.ovr-(rec.role==='RB'||rec.role==='TE'?5:0);
+    const pC=clamp(0.96-(96-hands)/200-(dD<0.8?0.3:dD<1.6?0.15:dD<2.6?0.04:0)-dR*0.05+(rec.zone?0.14:0)-(D&&D.zone&&D.rp.pos==='CB'&&dD<2.6?0.1:0)-0.04*k-(swat?0.3:0),0.05,0.97);
+    out=Math.random()<pInt?'int':Math.random()<pC?'catch':(dD<1.8?'pbu':'drop');}
+  else out=(dD<1.1&&inb&&Math.random()<Math.min(0.6,0.15*im))?'int':'miss';
+  if(out==='catch'){rec.x=rec.x*0.4+L.x*0.6;rec.z=rec.z*0.4+L.z*0.6;rec.anim='carry';gm.carrier=rec;gm.ball={held:rec};gm.caught=true;if(uo)gm.st.cmp++;if(rec.z>=100)endPlay('td',100);}
+  else if(out==='int'){D.anim='carry';gm.ball={held:D};gm.focus={x:D.x,z:D.z};gm.intBy=D;endPlay('int',L.z);}
+  else{if(out==='pbu')zoneUp(D,2);else if(out==='drop')zoneOut(rec);
+    endPlay('inc',0,out==='pbu'?(swat?'Swatted away!':'Broken up by #'+D.num):out==='drop'?'Dropped':(inb?'Incomplete':'Out of bounds'));}}
+
+// ----- one simulation step while the ball is live -----
+function stepLive(dt){gm.t+=dt;const t=gm.t,E=gm.ents,by=gm.by,qb=by.QB,los=gm.pos,play=gm.play,uo=uoff();
+  for(const e of E)e.face=null;
+  if(play.t==='run'&&!gm.handed&&t>=(play.toss?0.3:0.42)){gm.handed=true;gm.carrier=by.RB;gm.ball={held:by.RB};by.RB.anim='carry';}
+  if(gm.throwing&&t>=gm.throwing.at){const r=gm.throwing.rec;gm.throwing=null;releaseBall(r);}
+  if(play.t==='pass'&&gm.carrier===qb&&qb.z>los+0.4&&!gm.scr){gm.scr=true;gm.throwing=null;qb.anim='carry';}
+  const car=gm.carrier,b=gm.ball;
+  const mode=b.fly?'air':(play.t==='pass'&&car===qb&&!gm.scr?'pocket':'run');gm.mode=mode;
+  for(const e of E){if(e.side!=='O'||e.down)continue;
+    if(e===car){if(uo)control(e,dt,mode);else if(mode==='pocket')aiQB(e,dt);else aiRun(e,dt);if(gm.phase!=='live')return;continue;}
+    if(e===qb){accel(e,0,0,dt);continue;}
+    if(mode==='air'&&e===b.target){seek(e,b.land.x,b.land.z,e.max,dt);if(b.T-b.t<0.35)e.anim='catch';continue;}
+    if(e.route&&mode!=='run'){runRoute(e,dt);continue;}
+    doBlock(e,dt,car||qb);}
+  for(const d of E){if(d.side!=='D'||d.down)continue;
+    if(d===gm.ctl&&!uo){userDefend(d,dt);if(gm.phase!=='live')return;continue;}
+    if(d.stun>t){accel(d,0,0,dt);continue;}
+    if(d.eng){if(t>=d.shedAt||d.eng.down){d.eng.beat=t+1.2;d.eng=null;d.freeUntil=t+3;}
+      else{const g=car||qb,bl=d.eng;if(play.t==='run'&&!gm.scr&&isOL(bl)&&g.z<d.z+1)accel(d,(d.x>=gm.bx?1:-1)*0.9,1.5+(bl.rp.ovr-d.rp.ovr)*0.02,dt);else seek(d,g.x,g.z,(isOL(bl)||bl.role==='TE')?0.9+(d.rp.ovr-70)*0.02:d.max*0.5,dt);
+        d.anim='block';d.face=bl;if(mode==='run'&&car)tryTackle(d,car);if(gm.phase!=='live')return;continue;}}
+    d.anim='idle';const rusher=d.role[0]==='D'||d.blitz;
+    if(mode==='pocket'){
+      if(rusher){seek(d,qb.x,qb.z,d.max*0.95,dt);tryTackle(d,qb);}
+      else if(d.cover)cover(d,dt);else if(d.deepSide!=null)deep(d,dt);
+      else{seek(d,gm.bx+(d.zx||0)*0.7+(qb.x-gm.bx)*0.4,los+6,d.max*0.6,dt);d.face=qb;}}
+    else if(mode==='air'){const near=Math.hypot(d.x-b.land.x,d.z-b.land.z);
+      if(rusher)accel(d,0,0,dt);
+      else if(t>=gm.thrownAt+d.react&&(d.cover===b.target||((d.deepSide!=null||d.role==='LB1')&&near<11)||near<4.5))seek(d,b.land.x,b.land.z,d.max,dt);
+      else if(d.cover)cover(d,dt);else if(d.deepSide!=null)deep(d,dt);else accel(d,0,0,dt);}
+    else{const read=(play.t==='run'&&!gm.caught)?0.68+(90-d.rp.ovr)/100:0;
+      if(!rusher&&t<read){if(d.cover)cover(d,dt);else accel(d,0,0,dt);}
+      else{pursue(d,car,dt);tryTackle(d,car);}}
+    if(gm.phase!=='live')return;}
+  for(const e of E){if(e.down)continue;e.x+=e.vx*dt;e.z+=e.vz*dt;}
+  separate();
+  if(b.fly){b.t+=dt;b.x+=b.vx*dt;b.z+=b.vz*dt;b.y+=b.vy*dt;b.vy-=b.g*dt;if(b.t>=b.T)resolvePass();}
+  const c=gm.carrier;
+  if(gm.phase==='live'&&c){if(c.z<-9.5)c.z=-9.5;if(c.z>=100&&Math.abs(c.x)<=FW)endPlay('td',100);else if(Math.abs(c.x)>FW)endPlay('oob',c.z);}}
+function stepDead(dt){gm.deadT+=dt;for(const e of gm.ents){if(e.down)continue;accel(e,0,0,dt);e.x+=e.vx*dt;e.z+=e.vz*dt;}
+  const b=gm.ball;if(b.fly&&b.y>0.12){b.x+=b.vx*dt;b.z+=b.vz*dt;b.y+=b.vy*dt;b.vy-=b.g*dt;if(b.y<=0.12){b.y=0.12;b.vx=b.vz=0;b.vy=0;}}
+  if(gm.zmsg&&gm.deadT>1.0&&gm.deadT<8){flash(gm.zmsg);gm.zmsg='';gm.zext=1.3;}
+  if(gm.deadT>(gm.after&&gm.after.scored?2.8:1.9)+(gm.zext||0)){gm.zext=0;gm.zmsg='';afterPlay();}}
+
+// ----- X-Factor zones -----
+function zoneUp(e,need){if(!e||!e.rp.xf||e.rp.pos==='OL')return;const z=gm.zone[e.rp.id]||(gm.zone[e.rp.id]={c:0,on:false});if(z.on)return;if(++z.c>=need){z.on=true;e.zone=true;gm.zmsg='X-Factor: '+e.rp.n+' is in the zone';}}
+function zoneOut(e){if(!e||!e.rp.xf||e.rp.pos==='OL')return;const z=gm.zone[e.rp.id];if(z){z.c=0;z.on=false;}}
+
+// ----- downs, scoring, clock -----
+function tick(sec){if(gm.q===5)return;gm.clock-=sec;if(gm.clock<=0){gm.clock=0;gm.exp=true;}}
+function addScore(side,pts){if(side==='U')gm.us+=pts;else gm.them+=pts;}
+function endPlay(kind,z,note){if(gm.phase!=='live')return;gm.phase='dead';gm.deadT=0;gm.throwing=null;
+  const los=gm.pos,st=gm.st,passed=gm.thrownAt!=null,uo=uoff(),other=uo?'A':'U',by=gm.by,c=gm.carrier,tk=gm.tkBy;
+  let txt='',change=false,next=25,run=18,scored=false;
+  if(kind==='inc'){txt=note;gm.down++;run=5;}
+  else if(kind==='int'){txt=uo?'Intercepted!':'Interception! Your ball';if(uo)st.int++;else st.dInt++;change=true;next=z>=100?20:clamp(Math.round(100-z),1,99);run=6;zoneOut(by.QB);zoneUp(gm.intBy,1);}
+  else{const td=kind==='td',zr=td?100:Math.min(99,Math.round(z)),gain=zr-los;
+    if(uo){if(kind==='sack')st.sk++;else if(passed)st.yds+=gain;else st.rush+=gain;if(td&&passed)st.td++;}
+    else{if(kind==='sack')st.dSk++;st.dYds+=gain;}
+    if(kind==='sack'){zoneOut(by.QB);zoneUp(tk,1);}
+    else{if(gm.caught){zoneUp(by.QB,3);zoneUp(c,2);}else if(c&&c.rp.pos==='RB'){if(gain>=5)zoneUp(c,2);else if(gain<0)zoneOut(c);}
+      if(tk)zoneUp(tk,tk.rp.pos==='DL'?(gain<=0?1:3):2);}
+    if(td||gain>=20)for(const e of gm.ents)if(e.side==='D')zoneOut(e);
+    if(td){const pat=Math.random()<0.96;addScore(gm.poss,pat?7:6);txt=(uo?'Touchdown!':'Touchdown '+gm.O.name)+(pat?'':' · Extra point missed');change=true;scored=true;run=6;
+      for(const e of gm.ents)if(e.side==='O'&&!e.down)e.anim='cele';}
+    else if(zr<=0){addScore(other,2);txt='Safety';change=true;next=35;}
+    else{gm.pos=zr;if(c)gm.bx=clamp(c.x,-3.1,3.1);
+      if(gain>=gm.toGo){gm.down=1;gm.toGo=Math.min(10,100-zr);txt=(gain>=0?'+':'')+gain+' yards · First down';}
+      else{gm.down++;gm.toGo-=gain;txt=kind==='sack'?'Sacked · '+gain+' yards':gain===0?'No gain':(gain>0?'+':'')+gain+' yard'+(Math.abs(gain)===1?'':'s');}
+      if(kind==='oob')run=6;}}
+  if(!change&&gm.down>4){change=true;next=clamp(100-gm.pos,1,99);txt+=uo?' · Turnover on downs':' · Stopped on downs';}
+  gm.tkBy=null;tick(run+Math.min(8,gm.t));gm.after={change,next,scored};gm.msg=txt;flash(txt);renderPanel();}
+function ydName(pos){return pos<50?'your own '+pos:pos===50?'midfield':'the '+gm.O.name+' '+(100-pos);}
+function showCard(title,lines,btn,fn){gm.phase='card';gm.card={title,lines,btn,fn};renderPanel();}
+function cardGo(){if(!gm||!gm.card)return;const fn=gm.card.fn;gm.card=null;fn();}
+function nextQuarter(){if(!gm.exp)return false;if(gm.q===2){halftime();return true;}if(gm.q===4){endReg();return true;}gm.q++;gm.clock=QLEN;gm.exp=false;return false;}
+function give(side,pos){if(side==='A'&&!gm.playDef)return oppDrive(pos);startDrive(side,pos);}
+function afterPlay(){const a=gm.after||{change:false};gm.after=null;const other=uoff()?'A':'U';
+  if(gm.q===5){if(a.scored)return finalCard();if(a.change){gm.them+=3;return showCard('Overtime',[gm.O.name+' kick the winning field goal.'],'See final score',finalCard);}return setHuddle();}
+  if(nextQuarter())return;
+  if(a.change)return give(other,a.next);
+  setHuddle();}
+function halftime(){gm.q=3;gm.clock=QLEN;gm.exp=false;showCard('Halftime',[gm.U.name+' '+gm.us+', '+gm.O.name+' '+gm.them,gm.O.name+' get the ball to start the second half.'],'Start second half',()=>give('A',25));}
+function endReg(){if(gm.us===gm.them){gm.q=5;gm.exp=false;showCard('Overtime',['Tied at '+gm.us+'. You get the ball first. Score and you win.'],'Start overtime',()=>startDrive('U',25));}else finalCard();}
+function finalCard(){const st=gm.st,lines=[gm.U.name+' '+gm.us+', '+gm.O.name+' '+gm.them,
+  gm.LU.QB.n+': '+st.cmp+' of '+st.att+', '+Math.round(st.yds)+' yards, '+st.td+' TD, '+st.int+' INT','Rushing: '+Math.round(st.rush)+' yards · Sacks taken: '+st.sk];
+  if(gm.playDef)lines.push('Defense: '+Math.round(st.dYds)+' yards allowed · '+st.dSk+' sacks · '+st.dInt+' interceptions');
+  showCard(gm.us>gm.them?'You win':'You lose',lines,'Back to team',finishGame);}
+function finishGame(){const us=gm.us,them=gm.them;gm=null;FLIP=false;hideGame();finishUserGame(us,them);render();}
+function fgDist(){return Math.round(100-gm.pos+17);}
+// The other team's fourth-down choice when you are playing defense.
+function aiFourth(){if(gm.down!==4)return false;const d=fgDist(),O=gm.O,sp=gm.pos;
+  if(d<=53){const good=Math.random()<clamp(0.95-(d-20)*0.012+(gm.LO.K.ovr-75)*0.004,0.2,0.98);tick(5);if(good)gm.them+=3;
+    showCard(O.name+' field goal',[d+'-yard attempt is '+(good?'good.':'no good.')],'Continue',()=>{gm.after={change:true,next:good?25:Math.max(20,100-sp)};afterPlay();});return true;}
+  if(gm.toGo<=2&&sp>=50)return false;
+  const net=rint(36,50),land=sp+net,s=land>=100?20:clamp(100-land,3,60);tick(8);
+  showCard(O.name+' punt',[net+'-yard punt. You start at '+ydName(s)+'.'],'Continue',()=>{gm.after={change:true,next:s};afterPlay();});return true;}
+// Simulated drive, used when "play defense" is turned off.
+function oppDrive(s){const O=gm.O,diff=ratings(O).off-ratings(gm.U).def,lines=[];let next=25;s=clamp(s,1,99);
+  if(gm.clock<18){gm.clock=0;gm.exp=true;lines.push(O.name+' run out the clock.');}
+  else{let pTD=clamp(0.27+diff*0.011+(s-25)*0.006+0.04*dk(),0.06,0.8);const pFG=clamp(0.14+(s-25)*0.004,0.08,0.3),pTO=clamp(0.13-diff*0.003,0.05,0.22);
+    const plays=rint(3,11);let time=plays*rint(7,11);if(time>gm.clock+10){time=gm.clock;pTD*=0.6;}
+    const x=Math.random();
+    if(x<pTD){const pat=Math.random()<0.95;gm.them+=pat?7:6;lines.push(O.name+' drive '+(100-s)+' yards in '+plays+' plays. Touchdown'+(pat?'.':', but the extra point is no good.'));}
+    else if(x<pTD+pFG){gm.them+=3;lines.push(O.name+' move into range and hit a '+rint(24,49)+'-yard field goal.');}
+    else if(x<pTD+pFG+pTO){const y=clamp(s+rint(2,35),5,95),who=pick([...gm.LU.DL,...gm.LU.LB,...gm.LU.CB,...gm.LU.S]);next=100-y;lines.push('Turnover! '+who.n+' ('+who.pos+') takes the ball away.');}
+    else{const y=clamp(s+rint(3,30),10,70),land=y+rint(36,50);next=land>=100?20:clamp(100-land,5,45);lines.push(O.name+' go '+(y-s)+' yards and punt.');}
+    tick(time);}
+  const endsGame=gm.exp&&gm.q===4,endsHalf=gm.exp&&gm.q===2;
+  if(!endsGame&&!endsHalf)lines.push('You take over at '+ydName(next)+'.');
+  showCard(O.name+' possession',lines,'Continue',()=>{if(nextQuarter())return;startDrive('U',next);});}
+function punt(){if(!gm||gm.phase!=='huddle'||!uoff())return;const net=rint(36,50),land=gm.pos+net,s=land>=100?20:clamp(100-land,3,60);tick(8);
+  showCard('Punt',[net+'-yard punt. '+gm.O.name+' start at their own '+s+'.'],'Continue',()=>{gm.after={change:true,next:s};afterPlay();});}
+function tryFG(){if(!gm||gm.phase!=='huddle'||!uoff())return;const d=fgDist(),K=gm.LU.K;gm.phase='kick';gm.kick={dist:d,tol:clamp(0.62-(d-20)*0.011+(K.ovr-75)*0.005+(K.xf?0.1:0)-0.04*dk(),0.1,0.75),t:0,m:-1};renderPanel();}
+function kickNow(){const k=gm&&gm.kick;if(!k||gm.phase!=='kick')return;const good=Math.abs(k.m)<=k.tol,sp=gm.pos;gm.kick=null;tick(5);if(good)gm.us+=3;
+  showCard(good?'Field goal is good':'No good',[k.dist+'-yard attempt '+(good?'splits the uprights.':'misses.')],'Continue',()=>{gm.after={change:true,next:good?25:Math.max(20,100-sp),scored:good};afterPlay();});}
+function simRest(){if(!gm||(gm.card&&gm.card.fn===finishGame))return;const f=gm.q>=5?0:((4-gm.q)*QLEN+gm.clock)/(4*QLEN),r=simGame(gm.U,gm.O);
+  const sc=x=>{const v=x*f,td=Math.floor(v/7);return td*7+(v-td*7>=3.5?3:0);};gm.us+=sc(r[0]);gm.them+=sc(r[1]);
+  if(gm.us===gm.them){if(Math.random()<0.5)gm.us+=3;else gm.them+=3;}gm.q=4;gm.clock=0;gm.exp=false;finalCard();}
+
+// ----- body motion -----
+function updPose(e,dt){const p=e.pose,sp=Math.hypot(e.vx,e.vz),t=gm.t;
+  const T={lean:0.05,lTh:0.05,rTh:0.05,lKn:0.1,rKn:0.1,lArm:0.1,rArm:0.1,lEl:0.25,rEl:0.25,fall:0,hop:0,spread:0.12};
+  const pre=gm.phase==='presnap'||gm.phase==='huddle'||gm.phase==='kick'||gm.phase==='card';
+  if(sp>0.6){e.ph+=sp*dt*1.9;const a=Math.min(1,sp/6),s=Math.sin(e.ph),c=Math.cos(e.ph);
+    T.lTh=s*0.95*a+0.12*a;T.rTh=-s*0.95*a+0.12*a;T.lKn=a*(0.25+1.1*Math.max(0,c));T.rKn=a*(0.25+1.1*Math.max(0,-c));
+    T.lArm=-s*0.8*a;T.rArm=s*0.8*a;T.lEl=T.rEl=0.3+1.1*a;T.lean=0.1+0.2*a;}
+  else if(pre){if(e.stance==='s3'){T.lean=0.95;T.lTh=T.rTh=0.8;T.lKn=T.rKn=1.35;T.rArm=1.15;T.rEl=0;T.lArm=0.5;T.lEl=1.0;}
+    else if(e.stance==='s2'){T.lean=0.32;T.lTh=T.rTh=0.38;T.lKn=T.rKn=0.62;T.lArm=T.rArm=0.25;T.lEl=T.rEl=0.9;}
+    else{T.lean=0.12;T.lTh=T.rTh=0.15;T.lKn=T.rKn=0.28;T.lArm=T.rArm=0.7;T.lEl=T.rEl=1.25;}}
+  const an=e.anim;
+  if(an==='block'){T.lean=0.28;T.lArm=T.rArm=1.5;T.lEl=T.rEl=0.25;if(sp<=0.6){T.lTh=T.rTh=0.35;T.lKn=T.rKn=0.6;}}
+  else if(an==='throw'){const u=(t-e.animT)/0.36;if(u>1.4)e.anim='idle';else{const w=Math.min(1,u/0.55),f=clamp((u-0.55)/0.45,0,1);T.rArm=u<0.55?1.2+2.5*w:3.7-2.7*f;T.rEl=u<0.55?1.4:0.2;T.lArm=0.9;T.lEl=0.8;T.lean=0.1;}}
+  else if(an==='catch'){T.lArm=T.rArm=2.3;T.lEl=T.rEl=0.35;}
+  else if(an==='carry'){T.rArm=0.55;T.rEl=1.9;}
+  else if(an==='down'){T.fall=1;T.lArm=T.rArm=2.5;T.lEl=T.rEl=0.2;T.lTh=0.15;T.rTh=0.05;T.lKn=0.3;T.rKn=0.1;T.lean=0;}
+  else if(an==='dive'){T.fall=0.92;T.lArm=T.rArm=2.2;T.lEl=T.rEl=0.1;T.lean=0;T.lTh=T.rTh=0.1;T.lKn=T.rKn=0.15;}
+  else if(an==='cele'){T.lArm=T.rArm=3.0;T.lEl=T.rEl=0.1;T.lean=-0.05;T.hop=Math.abs(Math.sin(performance.now()/110+e.ph))*0.4;T.spread=0.3;}
+  if(an==='dive'&&!e.down&&e.stun<=t&&!e.lunge)e.anim='idle';
+  const k=1-Math.exp(-dt*18),kf=1-Math.exp(-dt*9);
+  for(const key in T){if(key==='fall')p.fall+=(T.fall-p.fall)*kf;else if(key==='hop')p.hop=T.hop;else p[key]+=(T[key]-p[key])*k;}
+  let want=e.dir;if(e.face)want=Math.atan2(e.face.x-e.x,e.face.z-e.z);else if(sp>1)want=Math.atan2(e.vx,e.vz);
+  let dd=want-e.dir;while(dd>Math.PI)dd-=2*Math.PI;while(dd<-Math.PI)dd+=2*Math.PI;e.dir+=dd*(1-Math.exp(-dt*12));}
+function updCam(dt){const uo=uoff();let fx=gm.bx,fz=uo?gm.pos-5:gm.pos+5,back=uo?15.5:19;
+  if(gm.phase==='live'||gm.phase==='dead'){const b=gm.ball,c=gm.ctl;
+    if(b&&b.fly){fx=uo?b.x:b.land.x;fz=uo?Math.max(gm.by.QB.z,b.z-4):b.land.z;back=uo?15.5:17;}
+    else if(!uo&&gm.mode==='pocket'&&gm.phase==='live'&&c){fx=c.x*0.6;fz=(c.z+gm.pos+5)/2;}
+    else if(b&&b.held){fx=b.held.x;fz=b.held.z;if(!uo)back=16;}else if(gm.focus){fx=gm.focus.x;fz=gm.focus.z;}}
+  const k=gm.camSnap?1:1-Math.exp(-dt*4.5);gm.camSnap=false;cam.x+=(RX(fx)*0.7-cam.x)*k;cam.z+=(RZ(fz)-back-cam.z)*k;}
+
+// ----- frame loop, HUD, input -----
+function flash(t){const el=document.getElementById('flash');el.textContent=t;el.classList.add('on');flashT=1.7;}
+function fmtClock(s){s=Math.max(0,Math.ceil(s));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}
+function updHud(){const g=gm,A=g.userHome?g.O:g.U,Hm=g.home,as=g.userHome?g.them:g.us,hs=g.userHome?g.us:g.them,uo=g.poss==='U',PT=uo?g.U:g.O,DT=uo?g.O:g.U;
+  const ord=['1st','2nd','3rd','4th'][Math.min(3,g.down-1)],goal=g.pos+g.toGo>=100;
+  const spot=g.pos===50?'Midfield':(g.pos<50?PT.abbr+' '+g.pos:DT.abbr+' '+(100-g.pos)),dot='<em class="poss" title="Has the ball"></em>';
+  const s=`<div class="tm">${sw(A)}<b>${A.abbr}</b>${PT===A?dot:''}<i>${as}</i></div><div class="mid"><b>${g.q>=5?'OT':'Q'+g.q+' '+fmtClock(g.clock)}</b><span>${ord} &amp; ${goal?'Goal':g.toGo} · ${spot}</span></div><div class="tm"><i>${hs}</i>${PT===Hm?dot:''}<b>${Hm.abbr}</b>${sw(Hm)}</div><button class="btn ghost sm" data-a="simRest">Sim<span class="wide"> rest</span></button>`;
+  if(s!==hudStr){hudStr=s;document.getElementById('bug').innerHTML=s;}}
+function frame(ts){if(!gm){rafOn=false;return;}const dt=Math.min(0.05,(ts-lastTs)/1000||0.016);lastTs=ts;
+  const n=Math.max(1,Math.ceil(dt/0.0167)),h=dt/n;
+  for(let i=0;i<n&&gm;i++){if(gm.phase==='live')stepLive(h);else if(gm.phase==='dead')stepDead(h);if(!gm)break;for(const e of gm.ents)updPose(e,h);}
+  if(!gm){rafOn=false;return;}
+  if(gm.kick){const k=gm.kick;k.t+=dt;k.m=Math.sin(k.t*(2.6+k.dist*0.035)-1.57);const mk=document.getElementById('kmk');if(mk)mk.style.left=((k.m+1)*50)+'%';}
+  if(flashT>0){flashT-=dt;if(flashT<=0)document.getElementById('flash').classList.remove('on');}
+  updCam(dt);updHud();renderGame();requestAnimationFrame(frame);}
+function fitCanvas(){if(!cv)return;const st=document.getElementById('stage');DPR=Math.min(2,window.devicePixelRatio||1);W=Math.max(2,Math.round(st.clientWidth*DPR));H=Math.max(2,Math.round(st.clientHeight*DPR));if(cv.width!==W||cv.height!==H){cv.width=W;cv.height=H;}}
+function showGame(){document.getElementById('game').hidden=false;hudStr='';fitCanvas();if(!rafOn){rafOn=true;lastTs=performance.now();requestAnimationFrame(frame);}}
+function hideGame(){document.getElementById('game').hidden=true;}
+function setKeys(){const k=inp.k;inp.kx=(k.KeyD||k.ArrowRight?1:0)-(k.KeyA||k.ArrowLeft?1:0);inp.kz=(k.KeyW||k.ArrowUp?1:0)-(k.KeyS||k.ArrowDown?1:0);}
+function initInput(){cv=document.getElementById('cv');ctx=cv.getContext('2d');
+  if(window.ResizeObserver)new ResizeObserver(fitCanvas).observe(document.getElementById('stage'));addEventListener('resize',fitCanvas);
+  addEventListener('keydown',ev=>{if(!gm)return;const c=ev.code;if(c==='Space'||c==='Tab'||c.startsWith('Arrow'))ev.preventDefault();inp.k[c]=true;setKeys();if(ev.repeat)return;
+    if(c==='Space'){if(gm.phase==='presnap')snap();else if(gm.phase==='live'){if(uoff())juke();else dive();}else if(gm.phase==='kick')kickNow();else if(gm.phase==='dead')gm.deadT=9;else if(gm.phase==='card')cardGo();}
+    else if(c==='KeyQ'||c==='Tab'||c==='KeyE')switchCtl();
+    else if(/^(Digit|Numpad)[1-9]$/.test(c)){const n=+c.slice(-1);if(gm.phase==='huddle'){if(uoff()){if(n<=PLAYS.length)callPlay(n-1);}else if(n<=DCALLS.length)callDef(n-1);}else if(gm.phase==='live'&&uoff()){const r=gm.elig.find(e=>e.key===n);if(r)throwTo(r);}}});
+  addEventListener('keyup',ev=>{inp.k[ev.code]=false;setKeys();});
+  addEventListener('blur',()=>{inp.k={};setKeys();});
+  const startStick=ev=>{inp.stick={id:ev.pointerId,x:ev.clientX,y:ev.clientY};inp.sx=inp.sz=0;};
+  const pt=ev=>{const r=cv.getBoundingClientRect();return [(ev.clientX-r.left)*DPR,(ev.clientY-r.top)*DPR];};
+  cv.addEventListener('pointerdown',ev=>{if(!gm)return;ev.preventDefault();const p=pt(ev);
+    if(gm.phase==='presnap'){snap();return;}
+    if(gm.phase==='dead'){gm.deadT=9;return;}
+    if(gm.phase!=='live')return;
+    if(uoff()&&gm.mode==='pocket'){let best=null,bd=52*DPR;for(const e of gm.elig){if(e.sx==null)continue;const d=Math.hypot(e.sx-p[0],e.sy-p[1]);if(d<bd){bd=d;best=e;}}if(best){throwTo(best);return;}}
+    if(ev.pointerType==='mouse'){if(!uoff())dive();else if(gm.mode==='run')juke();return;}
+    startStick(ev);});
+  addEventListener('pointermove',ev=>{const s=inp.stick;if(!s||s.id!==ev.pointerId)return;inp.sx=clamp((ev.clientX-s.x)/44,-1,1);inp.sz=clamp(-(ev.clientY-s.y)/44,-1,1);});
+  const up=ev=>{if(inp.stick&&inp.stick.id===ev.pointerId){inp.stick=null;inp.sx=inp.sz=0;}};
+  addEventListener('pointerup',up);addEventListener('pointercancel',up);
+  document.getElementById('panel').addEventListener('pointerdown',ev=>{if(!gm||gm.phase!=='live'||ev.pointerType==='mouse'||ev.target.closest('button'))return;ev.preventDefault();startStick(ev);});}
+
+// ===== menus =====
+const $=s=>document.querySelector(s);
+const KEY='cityGridiron.v2';
+const UI={tab:'home',rf:'ALL',sel:null,edMsg:'',setup:null,dpos:'ALL',tr:{team:-1,give:[],get:[],gk:[],tk:[],msg:'',ok:false},confirmNew:false};
+const coarse=window.matchMedia&&matchMedia('(pointer:coarse)').matches;
+function save(){if(!S||S.user<0)return;S.nid=NID;try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
+function load(){try{const s=localStorage.getItem(KEY);if(s){const o=JSON.parse(s);if(o&&o.v===2&&o.teams&&o.teams.length===32&&o.user>=0){S=o;NID=S.nid||1;return true;}}}catch(e){}return false;}
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const sw=(T,c)=>`<span class="sw${c?' '+c:''}" style="--a:${T.c1};--b:${T.c2}"></span>`;
+const byId=(T,id)=>T.roster.find(p=>p.id===id);
+const pkById=id=>S.picks.find(k=>k.id===id);
+const posRank=p=>POS_ORDER.indexOf(p.pos)*1000-p.ovr;
+const xfTag=p=>p.xf?' <span class="xf" title="X-Factor: '+XF[p.pos][0]+'">X</span>':'';
+const phaseName=()=>S.phase==='regular'?'Week '+(S.week+1):S.phase==='playoffs'?roundName():S.phase==='draft'?S.draft.yr+' draft':S.phase==='preseason'?'Preseason':'Offseason';
+
+function render(){if(!S||S.user<0){renderPick();return;}const U=S.teams[S.user];
+  $('#top').innerHTML=`<div class="who">${sw(U,'lg')}<div><h1>${U.name}</h1><div class="meta">${S.season} · ${phaseName()} · ${U.w}-${U.l}</div></div></div><div class="stat">${S.tp}<small>Training points</small></div>`;
+  $('#tabs').hidden=false;$('#tabs').innerHTML=[['home',S.phase==='draft'?'Draft':'Home'],['roster','Roster'],['trade','Trades'],['league','League']].map(t=>`<button data-a="tab" data-t="${t[0]}" class="${UI.tab===t[0]?'on':''}">${t[1]}</button>`).join('');
+  ({home:vHome,roster:vRoster,trade:vTrade,league:vLeague})[UI.tab]();}
+function renderPick(){if(!S)newLeague();
+  $('#top').innerHTML='<div class="who"><div><h1>City Gridiron</h1><div class="meta">Pick a city to run</div></div></div>';$('#tabs').hidden=true;
+  let h='<div class="wrap"><section class="card hero"><p class="eyebrow">New franchise</p><h2>Thirty-two cities. One trophy.</h2><p class="muted">Call the plays, throw the passes, play defense, and trade players and draft picks to build a winner.</p></section>';
+  for(const c of ['A','N']){h+=`<section><h3>${CONF[c]} conference</h3><div class="pick">`;
+    for(const d of DIVS)for(const T of S.teams.filter(t=>t.conf===c&&t.div===d)){const r=ratings(T);h+=`<button data-a="pick" data-id="${T.id}">${sw(T)}<span><b>${T.name}</b><small>${d} · ${r.ovr} overall</small></span></button>`;}
+    h+='</div></section>';}
+  $('#view').innerHTML=h+'</div>';}
+function teamBlock(T,r){return `<div class="tb">${sw(T,'lg')}<div><b>${T.name}</b><span>${T.w}-${T.l}</span><div class="chips"><span class="chip">OFF ${r.off}</span><span class="chip">DEF ${r.def}</span></div></div></div>`;}
+
+// ----- uniforms -----
+function uniSvg(T,key){const u=UNI[T.abbr][key];return `<svg viewBox="0 0 44 70" aria-hidden="true"><rect x="14" y="44" width="16" height="16" fill="${u[2]}" stroke="#0006" stroke-width=".6"/><rect x="15" y="60" width="5" height="8" fill="${lum(u[0])>0.8?u[4]:u[0]}"/><rect x="24" y="60" width="5" height="8" fill="${lum(u[0])>0.8?u[4]:u[0]}"/>
+  <path d="M4 18h36v10h-6v17H10V28H4z" fill="${u[0]}" stroke="#0006" stroke-width=".6"/><rect x="4" y="24" width="6" height="3" fill="${u[4]}"/><rect x="34" y="24" width="6" height="3" fill="${u[4]}"/>
+  <text x="22" y="39" text-anchor="middle" font-size="13" font-weight="700" font-family="Barlow Condensed,Arial Narrow,sans-serif" fill="${u[1]}">12</text>
+  <rect x="13" y="2" width="18" height="15" rx="6" fill="${u[3]}" stroke="#0006" stroke-width=".6"/><rect x="21" y="2" width="2" height="15" fill="${u[4]}"/><rect x="17" y="12" width="10" height="3.5" fill="#22262b"/></svg>`;}
+function fixClash(T,key,other){const j=UNI[other.T.abbr][other.key][0];if(colDist(UNI[T.abbr][key][0],j)>=110)return key;
+  let best=key,bd=-1;for(const k of ['A','H','X','R']){const d=colDist(UNI[T.abbr][k][0],j);if(d>bd){bd=d;best=k;}}return best;}
+function openSetup(){const m=userMatch();if(!m)return;const home=m.h===S.user,U=S.teams[S.user],O=S.teams[home?m.a:m.h];
+  const uU=home?'H':fixClash(U,'A',{T:O,key:'H'});UI.setup={home,opp:O.id,uU,uO:fixClash(O,home?'A':'H',{T:U,key:uU})};}
+function uniPicker(T,cur,side){return `<div class="unicol"><h3>${T.name}</h3><div class="unirow">`+['H','A','X','R'].map(k=>`<button class="uni${cur===k?' on':''}" data-a="uni" data-s="${side}" data-k="${k}" aria-pressed="${cur===k}">${uniSvg(T,k)}<span>${UNI_NAMES[k]}</span></button>`).join('')+'</div></div>';}
+function settingsRow(){return `<div class="row set"><label for="setDiff">Difficulty</label><select id="setDiff">${DIFFS.map((d,i)=>`<option value="${i}"${S.diff===i?' selected':''}>${d}</option>`).join('')}</select>
+  <label for="setDef">Defense</label><select id="setDef"><option value="1"${S.playDef?' selected':''}>I play defense</option><option value="0"${S.playDef?'':' selected'}>Simulate defense</option></select></div>`;}
+function setupCard(lab){const su=UI.setup,U=S.teams[S.user],O=S.teams[su.opp],rival=U.conf===O.conf&&U.div===O.div;
+  const clash=colDist(UNI[U.abbr][su.uU][0],UNI[O.abbr][su.uO][0])<110;
+  return `<section class="card hero"><p class="eyebrow">${lab} · ${su.home?'Home':'Away'}${rival?' · Division rivalry game':''}</p><h2>Pick the uniforms</h2>
+  <div class="unis">${uniPicker(U,su.uU,'U')}${uniPicker(O,su.uO,'O')}</div>${clash?'<p class="bad">These two jerseys look alike. Pick a different one for either team.</p>':''}
+  ${settingsRow()}<div class="row"><button class="btn" data-a="kickoff">Kick off</button><button class="btn ghost" data-a="setupBack">Back</button></div></section>`;}
+
+// ----- home -----
+function assetLine(T,ids,kids){return ids.map(id=>byId(T,id)).map(p=>`<b>${p.pos} ${esc(p.n)}</b>${xfTag(p)} <span class="muted">${p.ovr} overall, age ${p.age}</span>`).concat(kids.map(id=>`<b>${pickName(pkById(id))} pick</b>`)).join(', ');}
+function offerCard(){const o=S.offer;if(!o||!tradesOpen())return '';const T=S.teams[o.team],U=S.teams[S.user];
+  if(o.give.some(id=>!byId(U,id))||o.get.some(id=>!byId(T,id))||o.giveK.some(id=>!pkById(id)||pkById(id).own!==U.id)||o.getK.some(id=>!pkById(id)||pkById(id).own!==T.id)){S.offer=null;return '';}
+  return `<section class="card"><p class="eyebrow">Trade offer from ${T.name}</p><p>They send ${assetLine(T,o.get,o.getK)}</p><p>They want ${assetLine(U,o.give,o.giveK)}</p><div class="row"><button class="btn sm" data-a="offerYes">Accept</button><button class="btn ghost sm" data-a="offerNo">Decline</button></div></section>`;}
+function vHome(){if(S.phase==='draft')return vDraft();const U=S.teams[S.user],r=ratings(U);let h='<div class="wrap">';
+  if(S.phase==='offseason'){const ch=S.teams[S.champ];
+    h+=`<section class="card hero"><p class="eyebrow">${S.season} season complete</p><h2>${ch.id===S.user?'You won the Gridiron Bowl':ch.name+' won the Gridiron Bowl'}</h2><p class="muted">Trades are open. When you start the draft, every player ages a year first: young players improve, veterans decline, and some retire.</p><div class="row"><button class="btn" data-a="startDraft">Start the ${S.season+1} draft</button></div></section>`;}
+  else if(S.phase==='preseason'){const over=U.roster.length-ROSTER_MAX;
+    h+=`<section class="card hero"><p class="eyebrow">Draft complete</p><h2>Ready for ${S.season+1}</h2><p class="muted">You have ${U.roster.length} players. The limit is ${ROSTER_MAX}. Trades are open.</p>${over>0?`<p class="bad">Release ${over} player${over>1?'s':''} on the Roster tab before the season starts.</p>`:''}<div class="row"><button class="btn" data-a="newSeason"${over>0?' disabled':''}>Start ${S.season+1} season</button></div></section>`;}
+  else{const m=userMatch(),lab=S.phase==='regular'?'Week '+(S.week+1)+' of '+S.schedule.length:roundName();
+    if(m&&UI.setup)h+=setupCard(lab);
+    else if(m){const home=m.h===S.user,opp=S.teams[home?m.a:m.h];
+      h+=`<section class="card hero"><p class="eyebrow">${lab} · ${home?'Home':'Away'}</p><div class="match">${teamBlock(U,r)}<span class="vs">${home?'vs':'at'}</span>${teamBlock(opp,ratings(opp))}</div><div class="row"><button class="btn" data-a="play">Play game</button><button class="btn ghost" data-a="sim">Sim game</button></div></section>`;}
+    else{const alive=S.po&&(S.po.alive.A.includes(S.user)||S.po.alive.N.includes(S.user));
+      h+=`<section class="card hero"><p class="eyebrow">${lab}</p><h2>${alive?'You earned a first-round bye':'Your season is over'}</h2><div class="row"><button class="btn" data-a="sim">${alive?'Continue':'Sim this round'}</button></div></section>`;}}
+  h+=offerCard();
+  if(S.news.length)h+='<section class="card"><h3>News</h3><ul class="news">'+S.news.slice(0,8).map(n=>`<li>${esc(n)}</li>`).join('')+'</ul></section>';
+  h+=`<section class="card"><h3>Settings</h3>${settingsRow()}<p class="muted">Rookie is forgiving. Legend makes defenders faster to react, tackles surer, and the other team's quarterback sharper.</p></section>`;
+  h+=`<section class="card"><h3>How to play</h3><ul class="news"><li><b>Offense:</b> pick a play, snap with <b>Space</b> or a tap, move with <b>WASD</b> or the arrow keys (drag on a phone). Throw with a receiver's number or by tapping him. Green is open, red is covered. <b>Space</b> jukes.</li><li><b>Defense:</b> pick a call, then steer the player with the blue marker. Run into the ball carrier to tackle, press <b>Space</b> to dive at him, or press it as a pass arrives to swat it. <b>Q</b> switches to the defender nearest the ball.</li><li><b>X-Factors:</b> stars marked X get a boost once they are in the zone, shown by a gold ring.</li><li><b>Training points:</b> earned every game. Spend them on the Roster tab to raise a player's rating.</li></ul><div class="row"><button class="btn ghost sm" data-a="newFr">${UI.confirmNew?'Tap again to erase this franchise':'Start a new franchise'}</button></div></section>`;
+  $('#view').innerHTML=h+'</div>';}
+
+// ----- roster and player editor -----
+function editor(U){const p=byId(U,UI.sel);if(!p){UI.sel=null;return '';}const c=upgradeCost(p);
+  return `<section class="card edit"><div class="row"><h3>${esc(p.n)}</h3><span class="muted">${p.pos} · ${p.ovr} overall · potential ${p.pot} · age ${p.age} · speed ${p.spd}</span></div>
+  ${p.xf?`<p><span class="xf">X</span> <b>${XF[p.pos][0]}.</b> ${XF[p.pos][1]}</p>`:`<p class="muted">Reaches X-Factor (${XF[p.pos][0]}) at ${XF_OVR} overall.</p>`}
+  <div class="row"><label for="edName">Name</label><input id="edName" value="${esc(p.n)}" maxlength="22" autocomplete="off"><label for="edNum">Number</label><input id="edNum" type="number" min="0" max="99" value="${p.num}" inputmode="numeric"><button class="btn sm" data-a="edSave">Save</button></div>
+  <div class="row"><button class="btn sm" data-a="edUp"${c&&S.tp>=c?'':' disabled'}>${c?'Upgrade +1 overall ('+c+' point'+(c>1?'s':'')+')':'Maxed out'}</button><button class="btn ghost sm" data-a="edRel">Release</button><button class="btn ghost sm" data-a="edClose">Close</button>${UI.edMsg?`<span class="${UI.edOk?'good':'bad'}">${esc(UI.edMsg)}</span>`:''}</div></section>`;}
+function vRoster(){const U=S.teams[S.user],F={ALL:POS_ORDER,OFF:['QB','RB','WR','TE','OL'],DEF:['DL','LB','CB','S'],K:['K']};
+  const list=U.roster.filter(p=>F[UI.rf].includes(p.pos)).sort((a,b)=>posRank(a)-posRank(b));
+  let h='<div class="wrap">'+editor(U)+'<div class="row">'+[['ALL','Everyone'],['OFF','Offense'],['DEF','Defense'],['K','Kicker']].map(f=>`<button class="btn ghost sm${UI.rf===f[0]?' sel':''}" data-a="rf" data-f="${f[0]}">${f[1]}</button>`).join('')+`<span class="muted">${U.roster.length} of ${ROSTER_MAX} players · tap a player to edit, upgrade or release</span></div>`;
+  h+='<div class="card scroll"><table class="tbl"><thead><tr><th>No.</th><th class="l">Player</th><th>Pos</th><th>Age</th><th>Ovr</th><th>Pot</th><th>Spd</th><th>Trade value</th></tr></thead><tbody>';
+  for(const p of list)h+=`<tr class="pl${isStarter(U,p)?' st':''}${UI.sel===p.id?' cur':''}" data-a="sel" data-id="${p.id}" tabindex="0"><td>${p.num}</td><td class="l">${esc(p.n)}${xfTag(p)}${isStarter(U,p)?' <span class="tag">Starter</span>':''}</td><td>${p.pos}</td><td>${p.age}</td><td class="ovr">${p.ovr}</td><td>${p.pot}</td><td>${p.spd}</td><td>${tradeValue(p).toFixed(1)}</td></tr>`;
+  $('#view').innerHTML=h+'</tbody></table></div></div>';}
+
+// ----- trades -----
+function trRow(p,on,act,T){return `<button class="prow${on?' on':''}" data-a="${act}" data-id="${p.id}" aria-pressed="${on}"><span class="pos">${p.pos}</span><span class="nm">${esc(p.n)}${xfTag(p)}${isStarter(T,p)?' <span class="tag">S</span>':''}</span><span class="muted">${p.age}y</span><span class="ovr">${p.ovr}</span><span class="muted">${tradeValue(p).toFixed(1)}</span></button>`;}
+function pkRow(k,on,act){return `<button class="prow pk${on?' on':''}" data-a="${act}" data-id="${k.id}" aria-pressed="${on}"><span class="pos">PK</span><span class="nm">${pickName(k)}</span><span class="muted"></span><span class="ovr">R${k.rd}</span><span class="muted">${pickValue(k).toFixed(1)}</span></button>`;}
+function vTrade(){const U=S.teams[S.user],tr=UI.tr;if(tr.team<0||tr.team===S.user)tr.team=S.teams.find(t=>t.id!==S.user).id;const T=S.teams[tr.team];
+  tr.give=tr.give.filter(id=>byId(U,id));tr.get=tr.get.filter(id=>byId(T,id));tr.gk=tr.gk.filter(id=>pkById(id)&&pkById(id).own===U.id);tr.tk=tr.tk.filter(id=>pkById(id)&&pkById(id).own===T.id);
+  const give=tr.give.map(id=>byId(U,id)),get=tr.get.map(id=>byId(T,id)),gk=tr.gk.map(pkById),tk=tr.tk.map(pkById),open=tradesOpen(),nG=give.length+gk.length,nT=get.length+tk.length;
+  let h='<div class="wrap">';
+  if(!open)h+='<section class="card"><p class="eyebrow">Trading is closed</p><p class="muted">'+(S.phase==='draft'?'Trades reopen when the draft ends.':'The deadline is after week '+TRADE_DEADLINE+'. Trades reopen in the offseason.')+'</p></section>';
+  h+=`<div class="row"><label for="trTeam">Trade with</label><select id="trTeam">${S.teams.filter(t=>t.id!==S.user).map(t=>`<option value="${t.id}"${t.id===T.id?' selected':''}>${t.name} (${t.w}-${t.l})</option>`).join('')}</select><span class="muted">Pick up to 3 players or draft picks on each side. The last column is trade value.</span></div>`;
+  const srt=(a,b)=>posRank(a)-posRank(b);
+  h+=`<div class="tr-cols"><section class="card"><h3>You send <span class="muted">${nG}/3</span></h3><div class="plist">${teamPicks(U.id).map(k=>pkRow(k,tr.gk.includes(k.id),'trGk')).join('')}${U.roster.slice().sort(srt).map(p=>trRow(p,tr.give.includes(p.id),'trGive',U)).join('')}</div></section><section class="card"><h3>${T.name} send <span class="muted">${nT}/3</span></h3><div class="plist">${teamPicks(T.id).map(k=>pkRow(k,tr.tk.includes(k.id),'trTk')).join('')}${T.roster.slice().sort(srt).map(p=>trRow(p,tr.get.includes(p.id),'trGet',T)).join('')}</div></section></div>`;
+  let sum='<p class="muted">Select players or picks to see what they think.</p>';
+  if(nG&&nT){const ev=aiEval(T,give,get,gk,tk),ok=ev.ratio>=1.03;
+    sum=`<div class="row"><span>${T.name} interest</span><div class="meter${ok?' ok':''}"><i style="width:${Math.round(clamp(ev.ratio/1.03,0.04,1)*100)}%"></i></div><b>${ok?'They would say yes':ev.ratio>0.8?'Close':'Not enough'}</b></div>`;}
+  h+=`<section class="card tr-sum">${sum}<div class="row"><button class="btn" data-a="propose"${open&&nG&&nT?'':' disabled'}>Propose trade</button><button class="btn ghost sm" data-a="trClear">Clear</button>${tr.msg?`<span class="${tr.ok?'good':'bad'}">${esc(tr.msg)}</span>`:''}</div></section>`;
+  const v=$('#view'),sc=[...v.querySelectorAll('.plist')].map(e=>e.scrollTop),vs=v.scrollTop;v.innerHTML=h+'</div>';
+  [...v.querySelectorAll('.plist')].forEach((e,i)=>{e.scrollTop=sc[i]||0;});v.scrollTop=vs;}
+
+// ----- draft room -----
+function vDraft(){const D=S.draft,pk=curPick(),T=S.teams[pk.own],mine=pk.own===S.user,U=S.teams[S.user];
+  const left=D.order.slice(D.i).map(pkById).filter(k=>k.own===S.user);
+  let h=`<div class="wrap"><section class="card hero"><p class="eyebrow">${D.yr} draft · Round ${pk.rd} · Pick ${D.i+1} of ${D.order.length}</p><h2>${mine?'You are on the clock':sw(T)+' '+T.name+' are on the clock'}</h2>
+  <p class="muted">${left.length?'Your picks left: '+left.map(k=>'Round '+k.rd+(k.orig!==k.own?' (from '+S.teams[k.orig].name+')':'')).join(', ')+'.':'You have no picks left in this draft.'}</p>
+  <div class="row">${mine?'<button class="btn ghost" data-a="draftAuto">Pick the best fit for me</button>':`<button class="btn" data-a="draftSim">${left.length?'Sim to my next pick':'Sim the rest of the draft'}</button>`}</div></section>`;
+  if(mine){const F=['ALL',...POS_ORDER],pool=D.pool.filter(p=>UI.dpos==='ALL'||p.pos===UI.dpos).slice(0,40);
+    h+='<div class="row">'+F.map(f=>`<button class="btn ghost sm${UI.dpos===f?' sel':''}" data-a="dpos" data-f="${f}">${f==='ALL'?'All':f}</button>`).join('')+'</div>';
+    h+='<div class="card scroll"><table class="tbl"><thead><tr><th></th><th class="l">Prospect</th><th>Pos</th><th>Ovr</th><th>Pot</th><th>Age</th><th>Spd</th><th>You have</th></tr></thead><tbody>';
+    for(const p of pool){const have=U.roster.filter(x=>x.pos===p.pos);h+=`<tr><td class="l"><button class="btn sm" data-a="draftPick" data-id="${p.id}">Draft</button></td><td class="l">${esc(p.n)}</td><td>${p.pos}</td><td class="ovr">${p.ovr}</td><td>${p.pot}</td><td>${p.age}</td><td>${p.spd}</td><td>${have.length} (best ${have.reduce((m,x)=>Math.max(m,x.ovr),0)})</td></tr>`;}
+    h+='</tbody></table></div>';}
+  if(D.log.length)h+='<section class="card"><h3>Latest picks</h3><ul class="news">'+D.log.slice(0,10).map(l=>`<li>${l.no}. ${sw(S.teams[l.team])} ${S.teams[l.team].name}: <b>${l.pos} ${esc(l.n)}</b> <span class="muted">${l.ovr} overall</span></li>`).join('')+'</ul></section>';
+  $('#view').innerHTML=h+'</div>';}
+
+// ----- league -----
+function vLeague(){let h='<div class="wrap">';
+  if(S.po){h+='<section class="card"><h3>Playoffs</h3>';const line=g=>{const H=S.teams[g.h],A=S.teams[g.a];return `<li>${sw(A)} ${A.name} ${g.as==null?'':g.as} at ${sw(H)} ${H.name} ${g.hs==null?'':g.hs}</li>`;};
+    if(S.po.games.length)h+=`<p class="eyebrow">${roundName()}</p><ul class="news">${S.po.games.map(line).join('')}</ul>`;
+    for(const r of S.po.log.slice().reverse())h+=`<p class="eyebrow">${r.name}</p><ul class="news">${r.games.map(line).join('')}</ul>`;
+    h+='</section>';}
+  if(S.phase==='regular'){h+='<section class="card"><h3>Playoff picture</h3><p class="muted">Each conference sends its four division winners (seeds 1 to 4), then the three best remaining records as wild cards (seeds 5 to 7). The top seed gets a bye.</p><div class="tr-cols">';
+    for(const c of ['A','N']){const s=seedsFor(c),row=(T,i,lab,cls)=>`<tr class="${T.id===S.user?'me':''} ${cls}"><td>${i}</td><td class="l">${sw(T)} ${T.name}</td><td>${T.w}-${T.l}</td><td class="l muted">${lab}</td></tr>`;
+      h+=`<div class="scroll"><table class="tbl"><thead><tr><th>Seed</th><th class="l">${CONF[c]}</th><th>Rec</th><th class="l">In as</th></tr></thead><tbody>`+s.div.map((T,i)=>row(T,i+1,T.div+' winner','')).join('')+s.wc.map((T,i)=>row(T,i+5,'Wild card','')).join('')+s.hunt.map(T=>row(T,'','In the hunt','out')).join('')+'</tbody></table></div>';}
+    h+='</div></section>';}
+  for(const c of ['A','N']){h+=`<section class="card scroll"><h3>${CONF[c]} conference</h3><table class="tbl"><thead><tr><th class="l">Team</th><th>W</th><th>L</th><th>PF</th><th>PA</th><th>Ovr</th></tr></thead><tbody>`;
+    for(const d of DIVS){h+=`<tr class="div"><td class="l" colspan="6">${d}</td></tr>`;
+      for(const T of S.teams.filter(t=>t.conf===c&&t.div===d).sort(cmpTeams))h+=`<tr class="${T.id===S.user?'me':''}"><td class="l">${sw(T)} ${T.name}</td><td>${T.w}</td><td>${T.l}</td><td>${T.pf}</td><td>${T.pa}</td><td>${ratings(T).ovr}</td></tr>`;}
+    h+='</tbody></table></section>';}
+  h+='<section class="card"><h3>Your schedule</h3><ul class="news">';
+  S.schedule.forEach((wk,i)=>{const g=wk.find(x=>x.h===S.user||x.a===S.user);if(!g)return;const home=g.h===S.user,opp=S.teams[home?g.a:g.h];
+    const res=g.hs==null?'':(()=>{const us=home?g.hs:g.as,th=home?g.as:g.hs;return ` <b class="${us>th?'good':'bad'}">${us>th?'W':'L'} ${us}-${th}</b>`;})();
+    h+=`<li>Week ${i+1}: ${home?'vs':'at'} ${sw(opp)} ${opp.name}${res}</li>`;});
+  $('#view').innerHTML=h+'</ul></section></div>';}
+
+// ===== in-game panel =====
+function playSvg(pl){const X={WR1:-19,WR2:19,WR3:-9.5,TE:4.5,RB:1.8},Z={WR1:0,WR2:0,WR3:0,TE:0,RB:-5},y=z=>22-clamp(z,-6,22);
+  let s='<svg viewBox="-27 -1 54 30" aria-hidden="true"><line x1="-27" x2="27" y1="22" y2="22" class="pl-los"/>';
+  if(pl.t==='pass'){for(const k in pl.r){const sg=X[k]>=0?1:-1;let pts=X[k]+','+y(Z[k]);for(const w of pl.r[k])pts+=' '+clamp(X[k]+w[0]*sg,-26,26)+','+y(Z[k]+w[1]);
+      s+=`<polyline points="${pts}" class="pl-rt"/><circle cx="${X[k]}" cy="${y(Z[k])}" r="1.5" class="pl-dot"/>`;}}
+  else{s+=`<polyline points="${pl.toss?'3.6,'+y(-5)+' 12,'+y(-3)+' 17,'+y(9):'1.8,'+y(-5)+' 0.6,'+y(-1)+' 0,'+y(11)}" class="pl-rt"/><circle cx="${pl.toss?3.6:1.8}" cy="${y(-5)}" r="1.5" class="pl-dot"/>`;
+    for(const x of [-2.9,-1.45,0,1.45,2.9])s+=`<rect x="${x-0.6}" y="${y(-0.7)-0.6}" width="1.2" height="1.2" class="pl-ol"/>`;}
+  return s+'</svg>';}
+function renderPanel(){const p=$('#panel'),g=gm;if(!g){p.innerHTML='';return;}let h='';const uo=g.poss==='U',kb=t=>coarse?'':` <span class="kbd">${t}</span>`;
+  if(g.phase==='huddle'&&uo){const d=fgDist();
+    h='<div class="plays">'+PLAYS.map((pl,i)=>`<button class="play" data-a="call" data-i="${i}">${playSvg(pl)}<b><span class="kbd">${i+1}</span>${pl.n}</b><small>${pl.d}</small></button>`).join('')+'</div>';
+    const ex=(d<=57?`<button class="btn ghost sm" data-a="fg">Kick field goal (${d} yards)</button>`:'')+(g.down===4&&g.q!==5?'<button class="btn ghost sm" data-a="punt">Punt</button>':'');
+    if(ex)h+='<div class="row sp">'+ex+'</div>';h+='<p class="muted tip">Tip: turn your phone sideways for a bigger field.</p>';}
+  else if(g.phase==='huddle')h='<div class="plays dcalls">'+DCALLS.map((c,i)=>`<button class="play" data-a="dcall" data-i="${i}"><b><span class="kbd">${i+1}</span>${c.n}</b><small>${c.d}</small></button>`).join('')+'</div><p class="muted sp">'+esc(g.O.name)+' have the ball. Pick a defense.</p>';
+  else if(g.phase==='presnap'&&uo)h=`<div class="row"><button class="btn" data-a="snap">Snap${kb('Space')}</button><button class="btn ghost sm" data-a="change">Change play</button><span class="muted">${g.play.t==='pass'?'Throw: '+(coarse?'tap a receiver':'press his number or click him')+'. Green is open.':'You run with the back as soon as he gets the ball.'}</span></div>`;
+  else if(g.phase==='presnap')h=`<div class="row"><button class="btn" data-a="snap">Ready${kb('Space')}</button><button class="btn ghost sm" data-a="sw">Switch player${kb('Q')}</button><span class="muted">You control #${g.ctl.num} ${esc(g.ctl.rp.n)} (${g.ctl.rp.pos}), under the blue marker. Call: ${DCALLS[g.dcall].n}.</span></div>`;
+  else if(g.phase==='live'&&uo)h=coarse?`<div class="pad"><span class="muted">Drag here or on the field to move.${g.play.t==='pass'?' Tap a receiver to throw.':''}</span><button class="btn" data-a="juke">Juke</button></div>`:`<div class="row"><span class="muted">Move: WASD or arrows. ${g.play.t==='pass'?'Throw: press a receiver\'s number or click him. ':''}Juke: Space.</span></div>`;
+  else if(g.phase==='live')h=coarse?`<div class="pad"><span class="muted">Drag to move your defender.</span><span class="row"><button class="btn ghost" data-a="sw">Switch</button><button class="btn" data-a="dive">Tackle</button></span></div>`:`<div class="row"><span class="muted">Move: WASD or arrows. Dive tackle or swat a pass: Space. Switch to the defender nearest the ball: Q.</span></div>`;
+  else if(g.phase==='dead')h=`<div class="row"><b class="res">${esc(g.msg)}</b></div>`;
+  else if(g.phase==='kick')h=`<div class="row"><b class="res">${g.kick.dist}-yard field goal</b><div class="kick"><span class="zone" style="width:${Math.round(g.kick.tol*100)}%"></span><span class="mk" id="kmk"></span></div><button class="btn" data-a="kick">Kick${kb('Space')}</button></div><p class="muted">Stop the marker inside the green zone.</p>`;
+  else if(g.card)h=`<div class="cardp"><h3>${esc(g.card.title)}</h3>${g.card.lines.map(l=>`<p>${esc(l)}</p>`).join('')}<div class="row"><button class="btn" data-a="cont">${g.card.btn}</button></div></div>`;
+  p.className=g.phase==='live'?'live':'';p.innerHTML=h;}
+
+// ===== actions =====
+function togAsset(arr,id){const tr=UI.tr,i=arr.indexOf(id),mine=arr===tr.give||arr===tr.gk,n=mine?tr.give.length+tr.gk.length:tr.get.length+tr.tk.length;if(i>=0)arr.splice(i,1);else if(n<3)arr.push(id);tr.msg='';render();}
+const ACT={
+  pick(d){S.user=+d.id;UI.tab='home';S.news=['Welcome to '+S.teams[S.user].name+'. Trades are open until week '+TRADE_DEADLINE+'. You start with '+S.tp+' training points.'];save();render();},
+  tab(d){UI.tab=d.t;UI.confirmNew=false;UI.tr.msg='';UI.edMsg='';render();$('#view').scrollTop=0;},
+  play(){openSetup();render();$('#view').scrollTop=0;},
+  setupBack(){UI.setup=null;render();},
+  uni(d){if(!UI.setup)return;UI.setup[d.s==='U'?'uU':'uO']=d.k;render();},
+  kickoff(){const su=UI.setup;if(!su)return;UI.setup=null;startGame(S.teams[su.opp],su.home,su.uU,su.uO);},
+  sim(){UI.setup=null;completeStep(false);render();},
+  startDraft(){startDraft();UI.dpos='ALL';render();$('#view').scrollTop=0;},
+  draftSim(){simDraftToUser();render();$('#view').scrollTop=0;},
+  draftAuto(){if(S.phase==='draft'&&curPick().own===S.user)makePick(aiPick(S.teams[S.user]));render();},
+  draftPick(d){if(S.phase!=='draft'||curPick().own!==S.user)return;const p=S.draft.pool.find(x=>x.id===+d.id);if(p)makePick(p);render();$('#view').scrollTop=0;},
+  dpos(d){UI.dpos=d.f;render();},
+  newSeason(){if(newSeason())render();},
+  rf(d){UI.rf=d.f;render();},
+  sel(d){UI.sel=+d.id;UI.edMsg='';render();$('#view').scrollTop=0;},
+  edClose(){UI.sel=null;UI.edMsg='';render();},
+  edSave(){const p=byId(S.teams[S.user],UI.sel);if(!p)return;const e=editPlayer(p,$('#edName').value,$('#edNum').value);UI.edMsg=e||'Saved.';UI.edOk=!e;render();},
+  edUp(){const p=byId(S.teams[S.user],UI.sel);if(!p)return;const e=upgradePlayer(p);UI.edMsg=e||'Upgraded to '+p.ovr+' overall.';UI.edOk=!e;render();},
+  edRel(){const p=byId(S.teams[S.user],UI.sel);if(!p)return;if(UI.relId!==p.id){UI.relId=p.id;UI.edMsg='Tap Release again to let him go for good.';UI.edOk=false;render();return;}
+    UI.relId=null;const e=releasePlayer(p);if(e){UI.edMsg=e;UI.edOk=false;}else{UI.sel=null;UI.edMsg='';}render();},
+  trGive(d){togAsset(UI.tr.give,+d.id);},trGet(d){togAsset(UI.tr.get,+d.id);},trGk(d){togAsset(UI.tr.gk,+d.id);},trTk(d){togAsset(UI.tr.tk,+d.id);},
+  trClear(){const tr=UI.tr;tr.give=[];tr.get=[];tr.gk=[];tr.tk=[];tr.msg='';render();},
+  propose(){const tr=UI.tr,U=S.teams[S.user],T=S.teams[tr.team];const r=proposeTrade(T,tr.give.map(id=>byId(U,id)),tr.get.map(id=>byId(T,id)),tr.gk.map(pkById),tr.tk.map(pkById));tr.msg=r.msg;tr.ok=r.ok;if(r.ok){tr.give=[];tr.get=[];tr.gk=[];tr.tk=[];}render();},
+  offerYes(){const o=S.offer,U=S.teams[S.user],T=S.teams[o.team];const r=proposeTrade(T,o.give.map(id=>byId(U,id)),o.get.map(id=>byId(T,id)),o.giveK.map(pkById),o.getK.map(pkById));S.offer=null;if(!r.ok)S.news.unshift('That offer fell through: '+r.msg);save();render();},
+  offerNo(){S.offer=null;save();render();},
+  newFr(){if(!UI.confirmNew){UI.confirmNew=true;render();return;}UI.confirmNew=false;try{localStorage.removeItem(KEY);}catch(e){}S=null;UI.sel=null;UI.setup=null;UI.tr={team:-1,give:[],get:[],gk:[],tk:[],msg:'',ok:false};render();},
+  call(d){callPlay(+d.i);},dcall(d){callDef(+d.i);},snap(){snap();},change(){if(gm&&gm.phase==='presnap'&&gm.poss==='U')setHuddle();},juke(){juke();},dive(){dive();},sw(){switchCtl();if(gm&&gm.phase==='presnap')renderPanel();},
+  cont(){cardGo();},punt(){punt();},fg(){tryFG();},kick(){kickNow();},simRest(){simRest();}};
+document.addEventListener('click',ev=>{const el=ev.target.closest('[data-a]');if(!el)return;const f=ACT[el.dataset.a];if(f)f(el.dataset);});
+document.addEventListener('keydown',ev=>{if(ev.key!=='Enter')return;const el=ev.target.closest&&ev.target.closest('tr[data-a]');if(el)ACT[el.dataset.a](el.dataset);else if(ev.target.id==='edName'||ev.target.id==='edNum')ACT.edSave();});
+document.addEventListener('change',ev=>{const t=ev.target;
+  if(t.id==='trTeam'){const tr=UI.tr;tr.team=+t.value;tr.get=[];tr.tk=[];tr.msg='';render();}
+  else if(t.id==='setDiff'){S.diff=+t.value;save();}else if(t.id==='setDef'){S.playDef=t.value==='1';save();}});
+initInput();load();render();
+
+</script>
+</body>
+</html>
