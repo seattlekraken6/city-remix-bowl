@@ -6,6 +6,8 @@ A 3D low-poly football game that runs in the browser. One file, no dependencies.
 - 32 city teams in real colors, four uniforms each
 - Trades with players and draft picks, a yearly draft, player upgrades
 - Four difficulty levels and X-Factor abilities
+- A broadcast crew with spoken play-by-play and captions, stadium intros, and stadiums modeled on each city's real building
+- Accept or decline penalties, captains, a chosen kick returner, and end-of-season awards
 
 ## Run it
 

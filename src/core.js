@@ -46,6 +46,43 @@ const XF={QB:['Gunslinger','Bullet passes that stay accurate under pressure. Tur
   DL:['Unstoppable','Beats any block within a second. Turns on after a sack or tackle for loss.'],LB:['Enforcer','His tackles are never broken. Turns on after 2 tackles.'],
   CB:['Lockdown','Blankets his receiver. Turns on after a pass breakup, an interception or 2 tackles.'],S:['Ball Hawk','Breaks on every throw and intercepts far more. Turns on after a breakup, an interception or 2 tackles.'],K:['Clutch','A much wider field goal target. Always on.']};
 
+// Each home stadium: roof (O open, C open with canopies, D dome, T translucent roof), seat color, landmark, capacity in thousands, and what makes it itself.
+const STAD={
+BUF:['C','#1f4fa8','none',62,'A brand-new open-air bowl with a canopy built to hold the noise in and keep the lake wind out.'],
+MIA:['C','#0f8f98','palm',65,'A white canopy shades the home crowd while the Florida sun bakes the visiting sideline.'],
+NE:['O','#16305e','light',65,'A lighthouse stands over the open north end.'],
+NYJ:['O','#6b7178','none',82,'The biggest building in the league: four decks of gray seats that take on the colors of whoever is home.'],
+NYG:['O','#6b7178','none',82,'The biggest building in the league: four decks of gray seats that take on the colors of whoever is home.'],
+BAL:['O','#3b2a8c','sky',71,'Purple seats, a loud brass band, and the downtown skyline beyond the open corners.'],
+CIN:['O','#33363b','water',65,'An open-cornered bowl on the riverfront.'],
+CLE:['O','#c2410c','water',67,'Right on the lakefront, where the wind off the water is part of the defense.'],
+PIT:['O','#e0ae1c','water',68,'Gold seats and an open south end that looks out over the rivers.'],
+HOU:['D','#a8223a','none',72,'The first retractable roof in the league, usually shut against the heat.'],
+IND:['D','#1f4f9c','win',67,'A brick fieldhouse with a huge window framing downtown.'],
+JAX:['O','#0f8a96','palm',68,'Teal seats, giant video boards, and swimming pools in the north end.'],
+TEN:['O','#2f6fb5','water',69,'An open bowl on the east bank of the river, facing downtown.'],
+DEN:['O','#d9571c','mtn',76,'A mile above sea level, with the Rockies beyond the upper deck.'],
+KC:['O','#cf1c35','none',76,'A sea of red, and the loudest outdoor crowd ever measured.'],
+LV:['D','#1b1d20','torch',65,'A black dome just off the Strip, with a giant torch in the end zone.'],
+LAC:['T','#1c4fa8','board',70,'A translucent roof, open sides, and a two-sided video board hanging over the whole field.'],
+LAR:['T','#2456b8','board',70,'A translucent roof, open sides, and a two-sided video board hanging over the whole field.'],
+DAL:['D','#1d3f8a','board',80,'A giant dome with a video board that stretches from one 20-yard line to the other.'],
+PHI:['O','#0f5d57','sky',70,'Open corners, a skyline view, and the toughest crowd in the sport.'],
+WAS:['O','#7a1f25','none',63,'A classic bowl in burgundy and gold.'],
+CHI:['O','#1a2238','col',62,'Stone colonnades from 1924 rise behind a modern seating bowl by the lake.'],
+DET:['D','#0a6fb0','none',65,'A downtown dome built into an old brick warehouse.'],
+GB:['O','#27513d','none',81,'A plain bowl of metal benches in the smallest city in the league, and the coldest.'],
+MIN:['T','#5b2f9a','win',67,'A sharp-angled glass roof and giant pivoting doors that open onto the skyline.'],
+ATL:['D','#a71930','halo',71,'A pinwheel roof and a video board that runs in a full ring above the field.'],
+CAR:['O','#1b8bd0','sky',74,'An open bowl uptown with bright blue seats.'],
+NO:['D','#2a2620','none',73,'The original dome, and still one of the loudest rooms in sports.'],
+TB:['O','#c0161b','ship',69,'A full-size pirate ship in the north end zone fires its cannons after every score.'],
+ARI:['D','#a0263f','none',63,'A silver dome in the desert, with a grass field that rolls outside to grow in the sun.'],
+SF:['O','#b3181c','none',68,'Red seats in the sun and a wall of suites down one side.'],
+SEA:['C','#1d3a63','sky',69,'Twin roof arches trap the noise, and the open north end looks out at downtown.']};
+const ROOF={O:'open air',C:'open air under a canopy',D:'indoors',T:'under a translucent roof'};
+const stadName=T=>T.name.replace(/ [A-Z]$/,'')+' Stadium';
+
 let S=null,NID=1;
 const dk=()=>S?[-1,0,0.7,1.4][S.diff]:0; // difficulty lean: Rookie, Pro, All-Pro, Legend
 
@@ -62,21 +99,21 @@ function genFA(n){const out=[];for(let i=0;i<n;i++){const pos=pick(FA_BAG);out.p
 function newLeague(){NID=1;
   const teams=TEAM_DEFS.map((d,i)=>{const taken=new Set(),roster=[];
     for(const r of REAL[d[0]]){let num=r[3];if(taken.has(num))num=numFor(r[1],taken);else taken.add(num);
-      const p={id:NID++,n:r[0],pos:r[1],age:r[5],ovr:r[2],dev:devFor(r[2],r[5],r[4]),pot:r[2],spd:spdFor(r[1],r[2]),num,xf:r[4]===1};p.pot=potFor(p);roster.push(p);}
+      const p={id:NID++,n:r[0],pos:r[1],age:r[5],ovr:r[2],dev:devFor(r[2],r[5],r[4]),pot:r[2],spd:spdFor(r[1],r[2]),num,xf:r[4]===1,rk:r[5]<=22?2026:0};p.pot=potFor(p);roster.push(p);}
     for(const pos of POS_ORDER)while(roster.filter(p=>p.pos===pos).length<ROSTER_N[pos])roster.push(mkPlayer(pos,rnd(60,67),rint(22,25),taken));
     return {id:i,abbr:d[0],name:d[1],c1:d[2],c2:d[3],conf:d[4],div:d[5],roster,w:0,l:0,pf:0,pa:0};});
-  S={v:3,season:2026,week:0,user:-1,teams,schedule:[],phase:'regular',po:null,picks:[],pid:1,news:[],offer:null,nid:NID,champ:null,last:'',diff:1,playDef:true,speed:1,koRet:true,tp:12,draft:null,myPicks:[],fa:[],rank:{}};
+  S={v:4,talk:2,pst:{},awards:null,season:2026,week:0,user:-1,teams,schedule:[],phase:'regular',po:null,picks:[],pid:1,news:[],offer:null,nid:NID,champ:null,last:'',diff:1,playDef:true,speed:1,koRet:true,tp:12,draft:null,myPicks:[],fa:[],rank:{}};
   S.picks=[...mkPicks(2027),...mkPicks(2028)];S.fa=genFA(60);computeRanks(false);S.schedule=makeSchedule(S.season);return S;}
 // Brings a save from the previous version up to date.
-function migrate(){if(S.v>=3)return;
+function migrate(){if(S.v>=4)return;if(S.talk==null)S.talk=2;if(!S.pst)S.pst={};if(S.season===2026)for(const T of S.teams)for(const q of T.roster)if(q.rk==null&&q.age<=22)q.rk=2026;if(S.v>=3){S.v=4;return;}
   for(const T of S.teams)for(const p of T.roster)if(!p.dev){p.dev=devFor(p.ovr,p.age,p.xf?1:0);if(p.dev==='N'&&p.pot-p.ovr>=8)p.dev='S';}
   if(S.draft)for(const p of S.draft.pool)if(!p.dev)p.dev=p.pot-p.ovr>=11?'E':p.pot-p.ovr>=6?'S':'N';
-  if(!S.fa)S.fa=genFA(60);if(S.speed==null)S.speed=1;if(S.koRet==null)S.koRet=true;if(!S.rank){S.rank={};computeRanks(false);}S.v=3;}
+  if(!S.fa)S.fa=genFA(60);if(S.speed==null)S.speed=1;if(S.koRet==null)S.koRet=true;if(!S.rank){S.rank={};computeRanks(false);}S.v=4;}
 
 // ===== depth chart and ratings =====
 function starters(T,pos){return T.roster.filter(p=>p.pos===pos).sort((a,b)=>b.ovr-a.ovr).slice(0,START_N[pos]);}
 function isStarter(T,p){return starters(T,p.pos).includes(p);}
-function ratings(T){const avg=pos=>{const a=starters(T,pos);return a.reduce((x,p)=>x+p.ovr+(p.xf?2:0),0)/(a.length||1);};
+function ratings(T){const avg=pos=>{const a=starters(T,pos);return a.reduce((x,p)=>x+p.ovr+(p.xf?2:0)+(p.cap?1:0),0)/(a.length||1);};
   const off=(avg('QB')*3+avg('RB')+avg('WR')*2.5+avg('TE')*0.7+avg('OL')*2.8)/10;
   const def=(avg('DL')*3+avg('LB')*2.2+avg('CB')*2.6+avg('S')*2.2)/10;
   return {off:Math.round(off),def:Math.round(def),ovr:Math.round((off+def)/2)};}
@@ -131,7 +168,7 @@ function finishRound(){const po=S.po,losers=po.games.map(g=>g.hs>g.as?g.a:g.h);
   po.log.push({name:roundName(),games:po.games.map(g=>({h:g.h,a:g.a,hs:g.hs,as:g.as}))});
   const fin=po.games.length===1&&po.games[0].conf==='F',g0=po.games[0];
   for(const c of ['A','N'])po.alive[c]=po.alive[c].filter(id=>!losers.includes(id));
-  if(fin){S.champ=g0.hs>g0.as?g0.h:g0.a;S.phase='offseason';po.games=[];S.news.unshift(S.teams[S.champ].name+' win the '+S.season+' Gridiron Bowl.');}
+  if(fin){S.champ=g0.hs>g0.as?g0.h:g0.a;S.phase='offseason';po.games=[];computeAwards();S.news.unshift(S.teams[S.champ].name+' win the '+S.season+' Gridiron Bowl.');}
   else buildRound();}
 function completeStep(played){const games=currentGames(),reg=S.phase==='regular';
   for(const g of games)if(g.hs==null){const r=simGame(S.teams[g.h],S.teams[g.a]);g.hs=r[0];g.as=r[1];}
@@ -148,9 +185,35 @@ function completeStep(played){const games=currentGames(),reg=S.phase==='regular'
   if(S.news.length>16)S.news.length=16;save();}
 function finishUserGame(us,them){const m=userMatch();if(m){const home=m.h===S.user;m.hs=home?us:them;m.as=home?them:us;}completeStep(true);}
 
+// ===== end-of-season awards =====
+function statLine(p,T){const o=Math.max(0,p.ovr-68),w=T.w,r=Math.round,f=x=>r(x).toLocaleString('en-US');
+  if(p.pos==='QB')return f(2700+o*58+w*40)+' yards, '+r(13+o*0.85+w*0.55)+' touchdowns';
+  if(p.pos==='RB')return f(620+o*36+w*12)+' rushing yards, '+r(3+o*0.42)+' touchdowns';
+  if(p.pos==='WR')return r(50+o*2.1)+' catches, '+f(560+o*37)+' yards, '+r(2+o*0.4)+' touchdowns';
+  if(p.pos==='TE')return r(38+o*2)+' catches, '+f(380+o*30)+' yards';
+  if(p.pos==='DL')return (3+o*0.52).toFixed(1)+' sacks, '+r(28+o*1.3)+' tackles';
+  if(p.pos==='LB')return r(78+o*2.6)+' tackles, '+(1+o*0.18).toFixed(1)+' sacks';
+  if(p.pos==='CB'||p.pos==='S')return r(1+o*0.2)+' interceptions, '+r(6+o*0.45)+' passes defended';
+  if(p.pos==='K')return r(80+o*0.6)+'% on field goals';return 'anchored the line';}
+function computeAwards(){const yr=S.season,all=[],rooks=[];
+  for(const T of S.teams)for(const p of T.roster){const x={p,T,v:p.ovr+T.w*0.8+(p.xf?2:0)+rnd(-2,2)};if(isStarter(T,p))all.push(x);if(p.rk===yr)rooks.push(x);}
+  const top=(arr,f,adj)=>arr.filter(f).map(x=>({p:x.p,T:x.T,s:x.v+(adj?adj(x):0)})).sort((a,b)=>b.s-a.s)[0];
+  const off=x=>['QB','RB','WR','TE'].includes(x.p.pos),def=x=>['DL','LB','CB','S'].includes(x.p.pos);
+  const mvp=top(all,off,x=>x.p.pos==='QB'?5+x.T.w*0.5:0);
+  const pairs=[['Most Valuable Player','MVP',mvp],['Offensive Player of the Year','Offensive Player of the Year',top(all,x=>off(x)&&x.p.pos!=='QB'&&x.p!==mvp.p)],['Defensive Player of the Year','Defensive Player of the Year',top(all,def)],
+    ['Offensive Rookie of the Year','Offensive Rookie of the Year',top(rooks,off)],['Defensive Rookie of the Year','Defensive Rookie of the Year',top(rooks,def)]];
+  const list=[];for(const [t,short,w] of pairs){if(!w)continue;const p=w.p;list.push({t,n:p.n,pos:p.pos,team:w.T.id,line:statLine(p,w.T)});p.aw=(p.aw||[]).concat(yr+' '+short);
+    if(w.T.id===S.user){S.tp+=5;S.news.unshift(p.n+' won '+t+'! (+5 training points)');}}
+  const pro=[];for(const [pos,n] of [['QB',1],['RB',1],['WR',2],['TE',1],['OL',2],['DL',2],['LB',2],['CB',2],['S',1],['K',1]]){
+    for(const x of all.filter(y=>y.p.pos===pos).sort((a,b)=>b.v-a.v).slice(0,n)){pro.push({pos,n:x.p.n,team:x.T.id});x.p.aw=(x.p.aw||[]).concat(yr+' All-Pro');if(x.T.id===S.user){S.tp+=2;S.news.unshift(x.p.n+' was named All-Pro. (+2 training points)');}}}
+  S.awards={yr,list,pro};}
+// ===== captains and the kick returner =====
+function toggleCaptain(p){const U=S.teams[S.user];if(p.cap){p.cap=false;save();return '';}if(U.roster.filter(x=>x.cap).length>=4)return 'You already have 4 captains. Remove one first.';p.cap=true;save();return '';}
+function setReturner(p){for(const x of S.teams[S.user].roster)x.kr=false;p.kr=true;save();}
+
 // ===== free agents =====
 const signCost=p=>p.ovr<68?1:p.ovr<74?2:p.ovr<79?4:p.ovr<84?7:p.ovr<89?11:16;
-function toFA(p){p.num=0;S.fa.push(p);}
+function toFA(p){p.num=0;p.cap=p.kr=false;S.fa.push(p);}
 function trimFA(){S.fa.sort((a,b)=>b.ovr-a.ovr);if(S.fa.length>90)S.fa.length=90;}
 function signFA(p){const U=S.teams[S.user],c=signCost(p);if(U.roster.length>=ROSTER_MAX)return 'Your roster is full at '+ROSTER_MAX+'. Release someone first.';if(S.tp<c)return 'Not enough training points.';
   S.tp-=c;S.fa.splice(S.fa.indexOf(p),1);p.num=numFor(p.pos,new Set(U.roster.map(x=>x.num)));U.roster.push(p);S.news.unshift('Signed free agent '+p.pos+' '+p.n+' ('+p.ovr+' overall).');save();return '';}
@@ -177,7 +240,7 @@ function startDraft(){S.offer=null;
   S.fa=S.fa.filter(p=>!agePlayer(p)&&p.ovr>=58);
   const n=32*ROUNDS+34,pool=[];for(let i=0;i<n;i++){const pos=pick(FA_BAG);if(pos==='K'&&Math.random()<0.6){i--;continue;}
     const r=Math.random(),dev=i<8?(r<0.25?'F':r<0.65?'E':'S'):i<32?(r<0.05?'F':r<0.3?'E':r<0.75?'S':'N'):(r<0.05?'E':r<0.35?'S':'N');
-    pool.push(mkPlayer(pos,clamp(79-i*0.15+gauss()*2.4,56,84),rint(21,23),null,dev));}
+    const np=mkPlayer(pos,clamp(79-i*0.15+gauss()*2.4,56,84),rint(21,23),null,dev);np.rk=S.season+1;pool.push(np);}
   pool.sort((a,b)=>b.ovr-a.ovr);S.myPicks=[];
   S.draft={yr:S.season+1,order:draftOrder(),i:0,pool,log:[]};S.phase='draft';if(!S.draft.order.length)endDraft();save();}
 const curPick=()=>S.draft?S.picks.find(k=>k.id===S.draft.order[S.draft.i]):null;
@@ -198,7 +261,7 @@ function trimRoster(T,max){while(T.roster.length>max){let worst=null;
 function endDraft(){const yr=S.draft.yr;
   for(const p of S.draft.pool.slice(0,30))toFA(p);   // undrafted rookies become free agents
   for(const T of S.teams){const taken=new Set(T.roster.map(p=>p.num));
-    for(const pos of POS_ORDER)while(T.roster.filter(p=>p.pos===pos).length<ROSTER_N[pos]){const r=mkPlayer(pos,rnd(58,66),rint(21,23),taken);T.roster.push(r);
+    for(const pos of POS_ORDER)while(T.roster.filter(p=>p.pos===pos).length<ROSTER_N[pos]){const r=mkPlayer(pos,rnd(58,66),rint(21,23),taken);r.rk=yr;T.roster.push(r);
       if(T.id===S.user)S.news.unshift('Signed undrafted rookie '+r.pos+' '+r.n+' ('+r.ovr+') to fill a roster spot.');}
     if(T.id!==S.user)trimRoster(T,36);}
   trimFA();
@@ -210,7 +273,7 @@ function newSeason(){const U=S.teams[S.user];if(U.roster.length>ROSTER_MAX)retur
   if(S.po)computeRanks(true);
   aiSignings(2);trimFA();   // the user gets first look at free agents during the preseason
   for(const T of S.teams){T.w=T.l=T.pf=T.pa=0;}
-  S.season++;S.week=0;S.phase='regular';S.po=null;S.schedule=makeSchedule(S.season);S.offer=null;S.champ=null;S.last='';save();return true;}
+  S.season++;S.week=0;S.phase='regular';S.po=null;S.pst={};S.schedule=makeSchedule(S.season);S.offer=null;S.champ=null;S.last='';save();return true;}
 
 // ===== player management =====
 function upgradeCost(p){if(p.ovr>=99)return 0;const b=p.ovr<75?1:p.ovr<85?2:p.ovr<92?3:4;return Math.max(1,b-(p.dev==='F'?1:0)-((p.dev==='F'||p.dev==='E')&&b>=3?1:0));}
@@ -246,7 +309,7 @@ function fixNums(T){const all=new Set(T.roster.map(p=>p.num)),seen=new Set();
   for(const p of T.roster){if(seen.has(p.num))p.num=numFor(p.pos,all);seen.add(p.num);}}
 function assetNames(ps,ks){return ps.map(p=>p.pos+' '+p.n).concat(ks.map(k=>'a '+k.yr+' round '+k.rd+' pick')).join(', ');}
 function execTrade(A,aOut,aK,B,bOut,bK){A.roster=A.roster.filter(p=>!aOut.includes(p)).concat(bOut);B.roster=B.roster.filter(p=>!bOut.includes(p)).concat(aOut);
-  for(const k of aK)k.own=B.id;for(const k of bK)k.own=A.id;fixNums(A);fixNums(B);
+  for(const k of aK)k.own=B.id;for(const k of bK)k.own=A.id;for(const p of aOut.concat(bOut))p.cap=p.kr=false;fixNums(A);fixNums(B);
   S.news.unshift('Trade: '+A.name+' send '+assetNames(aOut,aK)+' to '+B.name+' for '+assetNames(bOut,bK)+'.');save();}
 function tradesOpen(){return S.phase==='offseason'||S.phase==='preseason'||(S.phase==='regular'&&S.week<TRADE_DEADLINE);}
 function proposeTrade(T,give,get,giveK,getK){const U=S.teams[S.user];

@@ -153,6 +153,15 @@ label{color:var(--muted);font-size:13px}
 .setp{display:inline-flex;align-items:center;gap:6px}
 .play small{overflow-wrap:anywhere}
 @media (max-width:520px){#who{font-size:12px;padding:4px 8px;left:6px;bottom:6px}#who b{font-size:15px}.pbtabs button{font-size:14px;padding:2px 9px}}
+#cap{position:absolute;left:50%;top:8px;transform:translateX(-50%);width:max-content;max-width:min(94%,640px);background:rgba(8,14,11,.82);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:13px;line-height:1.35;pointer-events:none}
+#cap b{color:var(--chalk);font-weight:600}
+#intro{position:absolute;left:12px;bottom:12px;max-width:min(92%,440px);background:rgba(8,14,11,.86);border:1px solid var(--line);border-left:4px solid var(--chalk);border-radius:8px;padding:10px 14px;pointer-events:none}
+#intro h2{font-family:var(--display);font-size:clamp(26px,5vw,42px);line-height:1;margin:2px 0 4px;text-transform:uppercase}
+#intro p{margin:3px 0;font-size:13px;line-height:1.35}#intro .sub{color:var(--chalk)}
+.tag.cap{color:#1a1405;background:var(--chalk);border-color:var(--chalk);font-weight:700}
+.news li.me,.tr-sum .me,span.me{color:var(--chalk)}
+#cap:not([hidden])~#flash{top:calc(14% + 40px)}
+@media (max-width:560px){#cap{font-size:11.5px;padding:3px 7px;top:4px}#cap:not([hidden])~#flash{top:calc(10% + 50px);font-size:22px}#intro{left:6px;bottom:6px;padding:6px 10px}#intro p{font-size:12px}#intro p.x{display:none}#intro h2{font-size:24px}}
 </style>
 <div id="app">
   <header id="top"></header>
@@ -161,6 +170,6 @@ label{color:var(--muted);font-size:13px}
 </div>
 <div id="game" hidden>
   <div id="bug"></div>
-  <div id="stage"><canvas id="cv"></canvas><div id="flash" aria-live="polite"></div><div id="who" hidden></div></div>
+  <div id="stage"><canvas id="cv"></canvas><div id="cap" hidden aria-live="off"></div><div id="flash" aria-live="polite"></div><div id="who" hidden></div><div id="intro" hidden></div></div>
   <div id="panel"></div>
 </div>
