@@ -446,11 +446,15 @@ function applyPenalty(pen,who){const uo=uoff(),T=pen.off?(uo?gm.U:gm.O):(uo?gm.O
   if(!pen.pre)tick(5);gm.tkBy=null;gm.after={};gm.msg=txt;flash(txt);say([[0,'Flag on the play. '+pen.n+' on '+T.name+', '+y+' yards.']]);renderPanel();}
 // ----- the broadcast booth: spoken play-by-play and captions -----
 const BOOTH=['Ray Calloway','Tony Mercer'],ORD=['first','second','third','fourth','fifth','sixth','seventh','eighth'];let voices=null,capT=0;
-function pickVoices(){try{const v=speechSynthesis.getVoices().filter(x=>/^en/i.test(x.lang));if(!v.length)return;const a=v.find(x=>/en-US/i.test(x.lang))||v[0],b=v.find(x=>x.name!==a.name&&/en-(US|GB)/i.test(x.lang))||v.find(x=>x.name!==a.name)||a;voices=[a,b];}catch(e){}}
+function voiceList(){try{const all=speechSynthesis.getVoices(),en=all.filter(x=>/^en/i.test(x.lang));return en.length?en:all;}catch(e){return [];}}
+function pickVoices(){const v=voiceList();if(!v.length)return;const w=S.voice||[],a=v.find(x=>x.name===w[0])||v.find(x=>/en-US/i.test(x.lang))||v[0],b=v.find(x=>x.name===w[1])||v.find(x=>x.name!==a.name&&/en-(US|GB)/i.test(x.lang))||v.find(x=>x.name!==a.name)||a;voices=[a,b];}
+// Speaks lines as [speaker, text]. The two announcers get their own voice, pitch and pace.
+function speak(lines,keep){if(!window.speechSynthesis)return;try{if(!keep)speechSynthesis.cancel();if(!voices)pickVoices();const sp=[0.82,1,1.2][S.vspd==null?1:S.vspd],same=voices&&voices[0]===voices[1];
+  for(const l of lines){const u=new SpeechSynthesisUtterance(l[1]);if(voices){u.voice=voices[l[0]];u.lang=voices[l[0]].lang;}u.rate=(l[0]?1.02:1.12)*sp;u.pitch=same?(l[0]?0.7:1.1):(l[0]?0.9:1.05);speechSynthesis.speak(u);}}catch(e){}}
+function testVoices(){voices=null;speak([[0,'I am '+BOOTH[0]+', and I call the plays.'],[1,'And I am '+BOOTH[1]+', with the stats.']]);}
 function say(lines,keep,nocap){if(!S.talk||!lines)return;lines=lines.filter(l=>l&&l[1]);if(!lines.length)return;
   const el=document.getElementById('cap');if(el&&!nocap){el.innerHTML=lines.map(l=>'<b>'+BOOTH[l[0]].split(' ')[0]+':</b> '+esc(l[1])).join('<br>');el.hidden=false;capT=2.5+lines.reduce((n,l)=>n+l[1].length,0)*0.055;}
-  if(S.talk===2&&window.speechSynthesis){try{if(!keep)speechSynthesis.cancel();if(!voices)pickVoices();
-    for(const l of lines){const u=new SpeechSynthesisUtterance(l[1]);if(voices)u.voice=voices[l[0]];u.rate=l[0]?1.05:1.15;u.pitch=l[0]?0.75:1.05;speechSynthesis.speak(u);}}catch(e){}}}
+  if(S.talk===2)speak(lines,keep);}
 function hush(){try{if(window.speechSynthesis)speechSynthesis.cancel();}catch(e){}}
 function scoreLine(){const a=gm.us,b=gm.them;return a===b?'We are tied at '+a:(a>b?gm.U.name+' '+a+', '+gm.O.name+' '+b:gm.O.name+' '+b+', '+gm.U.name+' '+a);}
 // per-player numbers for this game
