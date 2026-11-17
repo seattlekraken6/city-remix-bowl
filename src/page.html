@@ -139,6 +139,20 @@ label{color:var(--muted);font-size:13px}
 .dcalls{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
 .sp{margin-top:10px}
 @media (max-width:520px){.uni span{font-size:12px;letter-spacing:0}.uni svg{width:36px;height:57px}}
+
+.pbtabs{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}
+.pbtabs button{background:none;border:1px solid var(--line);border-radius:999px;padding:3px 12px;font-family:var(--display);font-size:16px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.pbtabs button.on{background:var(--chalk);color:var(--ink);border-color:var(--chalk)}
+.dev{font-family:var(--display);font-weight:600;font-size:14px;letter-spacing:.04em;text-transform:uppercase;border-radius:3px;padding:1px 6px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.dev.dF{background:var(--chalk);color:var(--ink);border-color:var(--chalk)}.dev.dE{color:var(--chalk);border-color:var(--chalk)}.dev.dS{color:var(--fg)}
+#who{position:absolute;left:10px;bottom:10px;max-width:calc(100% - 20px);background:rgba(8,14,11,.84);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:14px;line-height:1.4;pointer-events:none}
+#who b{font-family:var(--display);font-size:19px;letter-spacing:.03em;text-transform:uppercase}
+#who span{color:var(--muted)}#who .zl{font-size:13px}#who em.xf{font-style:normal}#who .sw{width:14px;height:14px;border-radius:3px;vertical-align:-2px}
+.xf.off{background:transparent;color:var(--muted);box-shadow:inset 0 0 0 1px var(--muted)}
+.flagchip{font-family:var(--display);font-weight:700;font-size:15px;letter-spacing:.06em;text-transform:uppercase;background:#ffd400;color:#141a12;border-radius:4px;padding:1px 8px}
+.setp{display:inline-flex;align-items:center;gap:6px}
+.play small{overflow-wrap:anywhere}
+@media (max-width:520px){#who{font-size:12px;padding:4px 8px;left:6px;bottom:6px}#who b{font-size:15px}.pbtabs button{font-size:14px;padding:2px 9px}}
 </style>
 <div id="app">
   <header id="top"></header>
@@ -147,6 +161,6 @@ label{color:var(--muted);font-size:13px}
 </div>
 <div id="game" hidden>
   <div id="bug"></div>
-  <div id="stage"><canvas id="cv"></canvas><div id="flash" aria-live="polite"></div></div>
+  <div id="stage"><canvas id="cv"></canvas><div id="flash" aria-live="polite"></div><div id="who" hidden></div></div>
   <div id="panel"></div>
 </div>
