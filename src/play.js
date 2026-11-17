@@ -459,8 +459,8 @@ function speak(lines,keep){if(!window.speechSynthesis)return;try{if(!keep)speech
     u.rate=(l[0]?0.98:1.06)*(1+0.07*e)*sp;u.pitch=(same?(l[0]?0.8:1.05):1)+0.05*e;u.volume=1;speechSynthesis.speak(u);}}}catch(e){}}
 function testVoices(){voices=null;speak([[0,'Touchdown, '+S.teams[S.user].name+'! What a throw!',2],[1,'That\'s his third catch today, and he\'s already up to 88 yards.']]);}
 function say(lines,keep,nocap){if(!S.talk||!lines)return;lines=lines.filter(l=>l&&l[1]);if(!lines.length)return;
-  const el=document.getElementById('cap');if(el&&!nocap){el.innerHTML=lines.map(l=>'<b>'+BOOTH[l[0]].split(' ')[0]+':</b> '+esc(l[1])).join('<br>');el.hidden=false;capT=2.5+lines.reduce((n,l)=>n+l[1].length,0)*0.055;}
-  if(S.talk===2)speak(lines,keep);}
+  const el=document.getElementById('cap'),voice=S.talk>=2&&!!window.speechSynthesis&&voiceList().length>0;if(el&&!nocap&&(S.talk<3||!voice)){el.innerHTML=lines.map(l=>'<b>'+BOOTH[l[0]].split(' ')[0]+':</b> '+esc(l[1])).join('<br>');el.hidden=false;capT=2.5+lines.reduce((n,l)=>n+l[1].length,0)*0.055;}
+  if(S.talk>=2)speak(lines,keep);}
 function hush(){try{if(window.speechSynthesis)speechSynthesis.cancel();}catch(e){}}
 // ----- the crowd: a low murmur that swells on big plays -----
 let AC=null,cBed=null,cRoar=null,cT=0;
