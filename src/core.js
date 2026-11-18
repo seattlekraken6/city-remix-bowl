@@ -111,7 +111,10 @@ function migrate(){if(S.v>=4)return;if(S.talk==null)S.talk=2;if(!S.pst)S.pst={};
   if(!S.fa)S.fa=genFA(60);if(S.speed==null)S.speed=1;if(S.koRet==null)S.koRet=true;if(!S.rank){S.rank={};computeRanks(false);}S.v=4;}
 
 // ===== depth chart and ratings =====
-function starters(T,pos){return T.roster.filter(p=>p.pos===pos).sort((a,b)=>b.ovr-a.ovr).slice(0,START_N[pos]);}
+function starters(T,pos){return T.roster.filter(p=>p.pos===pos).sort((a,b)=>(a.inj?1:0)-(b.inj?1:0)||b.ovr-a.ovr).slice(0,START_N[pos]);}
+// A starter on a simulated team gets hurt for a few weeks.
+function simInjury(T){const c=T.roster.filter(p=>p.pos!=='K'&&p.pos!=='P'&&!p.inj&&isStarter(T,p));if(!c.length)return;const p=pick(c),wk=pick([1,1,1,2,2,3,4,6]);p.inj=wk;
+  if(T.id===S.user)S.news.unshift('Injury: '+p.n+' ('+p.pos+') is out '+wk+(wk===1?' week.':' weeks.'));}
 function isStarter(T,p){return starters(T,p.pos).includes(p);}
 function ratings(T){const avg=pos=>{const a=starters(T,pos);return a.reduce((x,p)=>x+p.ovr+(p.xf?2:0)+(p.cap?1:0),0)/(a.length||1);};
   const off=(avg('QB')*3+avg('RB')+avg('WR')*2.5+avg('TE')*0.7+avg('OL')*2.8)/10;
@@ -172,6 +175,8 @@ function finishRound(){const po=S.po,losers=po.games.map(g=>g.hs>g.as?g.a:g.h);
   else buildRound();}
 function completeStep(played){const games=currentGames(),reg=S.phase==='regular';
   for(const g of games)if(g.hs==null){const r=simGame(S.teams[g.h],S.teams[g.a]);g.hs=r[0];g.as=r[1];}
+  for(const T of S.teams)for(const p of T.roster)if(p.inj){p.inj--;if(!p.inj){delete p.inj;if(T.id===S.user)S.news.unshift(p.n+' ('+p.pos+') is healthy again.');}}
+  for(const g of games)for(const id of [g.h,g.a])if(!(id===S.user&&played)&&Math.random()<0.28)simInjury(S.teams[id]);
   const ug=games.find(g=>g.h===S.user||g.a===S.user);
   if(ug){const home=ug.h===S.user,us=home?ug.hs:ug.as,th=home?ug.as:ug.hs,opp=S.teams[home?ug.a:ug.h],won=us>th;
     const tp=(played?(won?5:3):(won?2:1))+(reg?0:2);S.tp+=tp;
@@ -269,7 +274,7 @@ function endDraft(){const yr=S.draft.yr;
   S.picks=S.picks.filter(k=>k.yr!==yr).concat(mkPicks(yr+2));
   if(S.myPicks.length)S.news.unshift('Your '+yr+' draft class: '+S.myPicks.join('; ')+'.');
   S.draft=null;S.phase='preseason';save();}
-function newSeason(){const U=S.teams[S.user];if(U.roster.length>ROSTER_MAX)return false;
+function newSeason(){const U=S.teams[S.user];if(U.roster.length>ROSTER_MAX)return false;for(const T of S.teams)for(const p of T.roster)delete p.inj;
   if(S.po)computeRanks(true);
   aiSignings(2);trimFA();   // the user gets first look at free agents during the preseason
   for(const T of S.teams){T.w=T.l=T.pf=T.pa=0;}

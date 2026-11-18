@@ -8,6 +8,8 @@ A 3D low-poly football game that runs in the browser. One file, no dependencies.
 - Four difficulty levels and X-Factor abilities
 - A broadcast crew with spoken play-by-play and captions, stadium intros, and stadiums modeled on each city's real building
 - Accept or decline penalties, captains, a chosen kick returner, and end-of-season awards
+- Coin toss, running game clock with a play clock and delay of game, three timeouts per half, and a sim-drive button
+- Spin moves, interception returns and pick-sixes, and occasional injuries with backups stepping in
 
 ## Run it
 
