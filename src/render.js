@@ -174,15 +174,15 @@ function renderGame(){const g=gm;if(!g||!ctx)return;setCam();ctx.setTransform(1,
   const live=g.phase==='live',uo=g.poss==='U',scrim=!g.ko&&g.phase!=='card';
   if(g.ents.length&&scrim){const lz=RZ(g.pos),fz=RZ(g.pos+g.toGo);gquad(-FW,lz-0.13,FW,lz+0.13,'rgba(46,110,255,.8)');if(g.pos+g.toGo<100&&!g.conv&&!g.kanim&&g.phase!=='kick')gquad(-FW,fz-0.13,FW,fz+0.13,'rgba(244,196,48,.9)');}
   if(g.phase==='presnap'&&uo&&!g.ko&&!g.two&&!g.drillHide){
-    for(const e of g.elig){const col=RCOL[(e.key-1)%5];let px=e.x,pz=e.z;for(const w of e.route){gline(px,pz,w.x,w.z,0.22,col);px=w.x;pz=w.z;}ring(px,pz,0.5,col,2.5);}
+    const pf=g.pro&&g.pro.pos!=='QB';for(const e of g.elig){if(pf&&e.rp.id!==g.pro.id)continue;const col=pf?'#f4c430':RCOL[(e.key-1)%5];let px=e.x,pz=e.z;for(const w of e.route){gline(px,pz,w.x,w.z,pf?0.32:0.22,col);px=w.x;pz=w.z;}ring(px,pz,pf?0.7:0.5,col,2.5);}
     if(g.runPath){const P=g.runPath;for(let i=1;i<P.length;i++)gline(P[i-1][0],P[i-1][1],P[i][0],P[i][1],0.26,RCOL[2]);ring(P[P.length-1][0],P[P.length-1][1],0.5,RCOL[2],2.5);}}
   ctx.fillStyle='rgba(0,0,0,.26)';
   for(const e of g.ents){const s=projW(RX(e.x),0,RZ(e.z));if(!s)continue;const r=cam.F*0.55/s[2];ctx.beginPath();ctx.ellipse(s[0],s[1],r,r*0.4,0,0,6.2832);ctx.fill();}
   const b=g.ball;
   for(const e of g.ents)if(e.zone&&!e.down){ring(e.x,e.z,0.62,'rgba(255,214,64,.95)',2);ring(e.x,e.z,0.95,'rgba(255,214,64,.55)',1.5);}
-  if(live){const car=g.carrier||(b&&b.fly&&!b.ko?b.target:null),pc=c=>g.two&&c.team==='A'?'rgba(255,140,80,.95)':'rgba(90,200,255,.95)';if((uo||g.two)&&car)ring(car.x,car.z,0.85,'rgba(244,196,48,.95)',2.5);for(const c of [g.ctl,g.ctl2])if(c&&c!==car)ring(c.x,c.z,0.85,pc(c),2.5);
+  if(live){const car=g.carrier||(b&&b.fly&&!b.ko?b.target:null),pc=c=>g.two&&c.team==='A'?'rgba(255,140,80,.95)':'rgba(90,200,255,.95)';if((uo||g.two)&&car)ring(car.x,car.z,0.85,'rgba(244,196,48,.95)',2.5);for(const c of [g.ctl,g.ctl2])if(c&&c!==car&&!g.pro)ring(c.x,c.z,0.85,pc(c),2.5);
     if(b&&b.fly){ring(b.land.x,b.land.z,0.9,'rgba(255,255,255,.9)',2);ring(b.land.x,b.land.z,0.35,'rgba(255,255,255,.9)',2);}}
-  else if((!uo||g.two)&&g.ctl&&g.phase==='presnap')ring(g.ctl.x,g.ctl.z,0.85,g.two&&g.ctl.team==='A'?'rgba(255,140,80,.95)':'rgba(90,200,255,.95)',2.5);
+  else if((!uo||g.two)&&g.ctl&&g.phase==='presnap'&&!g.pro)ring(g.ctl.x,g.ctl.z,0.85,g.two&&g.ctl.team==='A'?'rgba(255,140,80,.95)':'rgba(90,200,255,.95)',2.5);
   for(const e of g.ents)drawPlayer(e);
   if(b){let bx,by,bz,yaw=0,pit=0;
     if(b.held&&b.held.R){const h=b.held;const w=h.anim==='carry'||h.anim==='down'?mApply(h.R,0.3,h.hip+0.3,0.22):mApply(h.R,0.05,h.hip+0.45,0.3);bx=w[0];by=w[1];bz=w[2];yaw=h.dir+(FLIP?Math.PI:0);}
@@ -194,9 +194,11 @@ function renderGame(){const g=gm;if(!g||!ctx)return;setCam();ctx.setTransform(1,
   // gold X over players who are in the zone
   ctx.font='700 '+Math.round(15*DPR)+'px '+FONT_D;
   for(const e of g.ents)if(e.zone&&!e.down&&e.rp.pos!=='OL'){const s=projW(RX(e.x),2.55+(e.y||0),RZ(e.z));if(s&&s[2]<60){ctx.lineWidth=3*DPR;ctx.strokeStyle='rgba(0,0,0,.6)';ctx.strokeText('X',s[0],s[1]);ctx.fillStyle='#ffd640';ctx.fillText('X',s[0],s[1]);}}
-  if((uo||g.two)&&!g.ko&&((live&&g.mode==='pocket'&&!g.throwing)||g.phase==='presnap')){
+  if((uo||g.two)&&!g.ko&&!(g.pro&&g.pro.pos!=='QB')&&((live&&g.mode==='pocket'&&!g.throwing)||g.phase==='presnap')){
     for(const e of g.elig){const s=projW(e.x,2.9,e.z);e.sx=null;if(!s)continue;e.sx=s[0];e.sy=s[1];const dn=openness(e),rc=RCOL[(e.key-1)%5];
       const col=g.phase==='presnap'?rc:dn>3.2?'#4cc47a':dn>1.7?'#f4c430':'#e5604f',r=11*DPR;
       ctx.beginPath();ctx.arc(s[0],s[1]-r,r,0,6.2832);ctx.fillStyle=col;ctx.fill();ctx.lineWidth=3*DPR;ctx.strokeStyle=g.phase==='presnap'?'rgba(0,0,0,.55)':rc;ctx.stroke();ctx.fillStyle='#141a12';ctx.fillText(String(g.two&&!uo?(e.key+5)%10:e.key),s[0],s[1]-r+DPR);}}
   else for(const e of g.elig)e.sx=null;
-  if((!uo||g.two||g.loose)&&(live||g.phase==='presnap'))for(const cc of [g.ctl,g.ctl2]){if(!cc||cc===g.carrier&&!g.ret)continue;const s=projW(RX(cc.x),2.9,RZ(cc.z));if(s){const r=8*DPR;ctx.beginPath();ctx.moveTo(s[0]-r,s[1]-r*1.6);ctx.lineTo(s[0]+r,s[1]-r*1.6);ctx.lineTo(s[0],s[1]);ctx.closePath();ctx.fillStyle=g.two&&cc.team==='A'?'#ff8c50':'#5ac8ff';ctx.fill();ctx.lineWidth=2*DPR;ctx.strokeStyle='rgba(0,0,0,.55)';ctx.stroke();}}}
+  if(g.pro&&!g.ko&&(live||g.phase==='presnap'||g.phase==='dead')){const pe=proEnt();if(pe&&!pe.down){const s=projW(RX(pe.x),2.95+(pe.y||0),RZ(pe.z));if(s){const r=11*DPR;ctx.beginPath();ctx.moveTo(s[0]-r,s[1]-r*1.6);ctx.lineTo(s[0]+r,s[1]-r*1.6);ctx.lineTo(s[0],s[1]);ctx.closePath();ctx.fillStyle='#f4c430';ctx.fill();ctx.lineWidth=2*DPR;ctx.strokeStyle='rgba(0,0,0,.6)';ctx.stroke();
+      ctx.font='800 '+Math.round(11*DPR)+'px '+FONT_D;ctx.lineWidth=3*DPR;ctx.strokeText('YOU',s[0],s[1]-r*2.5);ctx.fillStyle='#f4c430';ctx.fillText('YOU',s[0],s[1]-r*2.5);}}}
+  else if((!uo||g.two||g.loose)&&(live||g.phase==='presnap'))for(const cc of [g.ctl,g.ctl2]){if(!cc||cc===g.carrier&&!g.ret)continue;const s=projW(RX(cc.x),2.9,RZ(cc.z));if(s){const r=8*DPR;ctx.beginPath();ctx.moveTo(s[0]-r,s[1]-r*1.6);ctx.lineTo(s[0]+r,s[1]-r*1.6);ctx.lineTo(s[0],s[1]);ctx.closePath();ctx.fillStyle=g.two&&cc.team==='A'?'#ff8c50':'#5ac8ff';ctx.fill();ctx.lineWidth=2*DPR;ctx.strokeStyle='rgba(0,0,0,.55)';ctx.stroke();}}}

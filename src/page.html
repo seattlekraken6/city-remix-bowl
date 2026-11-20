@@ -177,6 +177,29 @@ label{color:var(--muted);font-size:13px}
 .flagchip.rp{background:#c9302c;color:#fff}
 .tbl.sm td,.tbl.sm th{padding:3px 8px;font-size:13px}
 @media (max-width:560px){.wxchip{display:none}.flagchip.rp{font-size:11px;padding:1px 5px}}
+/* Be a Pro */
+.posgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,200px),1fr));gap:8px}
+.posb{display:flex;flex-direction:column;gap:3px;text-align:left;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:0}
+.posb b{font-family:var(--display);font-size:20px;text-transform:uppercase;letter-spacing:.04em;line-height:1.05}
+.posb small{color:var(--muted);font-size:13px;line-height:1.35}
+.posb.on{border-color:var(--chalk);box-shadow:inset 0 0 0 1px var(--chalk);background:var(--sel)}
+.posb.on b{color:var(--chalk)}
+.pform{display:grid;grid-template-columns:2fr 1fr 2fr;gap:10px;margin-bottom:12px}
+.pform label{display:flex;flex-direction:column;gap:4px;min-width:0}
+.pform label span{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.pform input,.pform select{width:100%}
+.procard .pc-top{display:flex;gap:14px;align-items:center;margin-bottom:12px}
+.procard .pc-top h3{margin:0 0 2px}.procard .pc-top p{margin:0}
+.pc-num{font-family:var(--display);font-size:40px;font-weight:700;line-height:1;width:64px;height:64px;border-radius:12px;display:grid;place-items:center;background:var(--bg);border:2px solid var(--chalk);color:var(--chalk);flex:none}
+.pc-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.pc-stats div{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;text-align:center}
+.pc-stats b{display:block;font-family:var(--display);font-size:28px;line-height:1;font-variant-numeric:tabular-nums}
+.pc-stats small{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.xpbar{height:10px;border-radius:5px;background:var(--bg);border:1px solid var(--line);overflow:hidden;margin-bottom:6px}
+.xpbar span{display:block;height:100%;background:var(--chalk)}
+.goals li{font-weight:500}
+.tbl tr.me td{background:var(--sel)}
+@media (max-width:560px){.pform{grid-template-columns:1fr 1fr}.pform label:first-child{grid-column:1/-1}.pc-stats{grid-template-columns:repeat(2,1fr)}}
 </style>
 <div id="app">
   <header id="top"></header>

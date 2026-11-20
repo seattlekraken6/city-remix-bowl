@@ -3,8 +3,12 @@ const $=s=>document.querySelector(s);
 const KEY='cityGridiron.v2';
 const UI={quick:null,two:null,tab:'home',rf:'ALL',rv:'team',sel:null,edMsg:'',faMsg:'',setup:null,dpos:'ALL',tr:{team:-1,give:[],get:[],gk:[],tk:[],msg:'',ok:false},confirmNew:false};
 const coarse=window.matchMedia&&matchMedia('(pointer:coarse)').matches;
-function save(){if(!S||S.user<0)return;S.nid=NID;try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
-function load(){try{const s=localStorage.getItem(KEY);if(s){const o=JSON.parse(s);if(o&&(o.v>=2&&o.v<=5)&&o.teams&&o.teams.length===32&&o.user>=0){S=o;NID=S.nid||1;if(S.v<5){migrate();save();}return true;}}}catch(e){}return false;}
+// Franchise and Be a Pro keep separate saves; the last one used opens first.
+const KEYP='cityGridiron.pro',KEYL='cityGridiron.last';
+function save(){if(!S||S.user<0)return;S.nid=NID;try{localStorage.setItem(S.mode==='pro'?KEYP:KEY,JSON.stringify(S));localStorage.setItem(KEYL,S.mode==='pro'?'p':'f');}catch(e){}}
+function loadKey(k){try{const s=localStorage.getItem(k);if(s){const o=JSON.parse(s);if(o&&(o.v>=2&&o.v<=5)&&o.teams&&o.teams.length===32&&o.user>=0){S=o;NID=S.nid||1;if(S.v<5){migrate();save();}return true;}}}catch(e){}return false;}
+function load(which){let w=which;if(!w){try{w=localStorage.getItem(KEYL);}catch(e){}w=w||'f';}const ok=loadKey(w==='p'?KEYP:KEY)||(!which&&loadKey(w==='p'?KEY:KEYP));if(ok){try{localStorage.setItem(KEYL,S.mode==='pro'?'p':'f');}catch(e){}}return ok;}
+const hasSave=k=>{try{return !!localStorage.getItem(k);}catch(e){return false;}};
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const sw=(T,c)=>`<span class="sw${c?' '+c:''}" style="--a:${T.c1};--b:${T.c2}"></span>`;
 const byId=(T,id)=>T.roster.find(p=>p.id===id);
@@ -15,13 +19,14 @@ const devTag=p=>`<span class="dev d${p.dev}">${DEV[p.dev]}</span>`;
 const phaseName=()=>S.phase==='regular'?'Week '+(S.week+1):S.phase==='playoffs'?roundName():S.phase==='draft'?S.draft.yr+' draft':S.phase==='preseason'?'Preseason':'Offseason';
 const FILT={ALL:POS_ORDER,OFF:['QB','RB','WR','TE','OL'],DEF:['DL','LB','CB','S'],K:['K']};
 
-function render(){if(!S||S.user<0){renderPick();return;}const U=S.teams[S.user];
+function render(){if(!S||S.user<0){renderPick();return;}if(isPro()){renderPro();return;}const U=S.teams[S.user];
   $('#top').innerHTML=`<div class="who">${sw(U,'lg')}<div><h1>${U.name}</h1><div class="meta">${S.season} · ${phaseName()} · ${U.w}-${U.l}</div></div></div><div class="stat">${S.tp}<small>Training points</small></div>`;
   $('#tabs').hidden=false;$('#tabs').innerHTML=[['home',S.phase==='draft'?'Draft':'Home'],['roster','Roster'],['trade','Trades'],['league','League']].map(t=>`<button data-a="tab" data-t="${t[0]}" class="${UI.tab===t[0]?'on':''}">${t[1]}</button>`).join('');
   ({home:vHome,roster:vRoster,trade:vTrade,league:vLeague})[UI.tab]();}
 function renderPick(){if(!S)newLeague();
-  $('#top').innerHTML='<div class="who"><div><h1>City Gridiron</h1><div class="meta">Pick a city to run</div></div></div>';$('#tabs').hidden=true;
-  let h='<div class="wrap">'+quickCard()+'<section class="card hero"><p class="eyebrow">New franchise</p><h2>Thirty-two cities. One trophy.</h2><p class="muted">Call the plays, throw the passes, play defense, and trade players and draft picks to build a winner.</p></section>';
+  $('#top').innerHTML='<div class="who"><div><h1>City Gridiron</h1><div class="meta">'+(UI.proNew?'Create your player':'Pick a city to run')+'</div></div></div>';$('#tabs').hidden=true;
+  if(UI.proNew){$('#view').innerHTML='<div class="wrap">'+proNewCard()+'</div>';return;}
+  let h='<div class="wrap">'+quickCard()+'<section class="card hero"><p class="eyebrow">New franchise</p><h2>Thirty-two cities. One trophy.</h2><p class="muted">Call the plays, throw the passes, play defense, and trade players and draft picks to build a winner. Pick your city below.</p></section>'+proCard();
   for(const c of ['A','N']){h+=`<section><h3>${CONF[c]} conference</h3><div class="pick">`;
     for(const d of DIVS)for(const T of S.teams.filter(t=>t.conf===c&&t.div===d)){const r=ratings(T);h+=`<button data-a="pick" data-id="${T.id}">${sw(T)}<span><b>${T.name}</b><small>${d} · ${r.ovr} overall</small></span></button>`;}
     h+='</div></section>';}
@@ -107,7 +112,7 @@ function vHome(){if(S.phase==='draft')return vDraft();const U=S.teams[S.user],r=
     else{const alive=S.po&&(S.po.alive.A.includes(S.user)||S.po.alive.N.includes(S.user));
       h+=`<section class="card hero"><p class="eyebrow">${lab}</p><h2>${alive?'You earned a first-round bye':'Your season is over'}</h2><div class="row"><button class="btn" data-a="sim">${alive?'Continue':'Sim this round'}</button></div></section>`;}}
   if(UI.two)h=h.replace('<div class="wrap">','<div class="wrap">'+twoCard());if(UI.quick)h=h.replace('<div class="wrap">','<div class="wrap">'+quickCard());
-  h+=offerCard();if(S.phase==='offseason'||S.phase==='preseason')h+=awardsCard();if(!UI.setup){h+=practiceCard();if(!UI.quick)h+=quickCard();if(!UI.two)h+=twoCard();}
+  h+=offerCard();if(S.phase==='offseason'||S.phase==='preseason')h+=awardsCard();if(!UI.setup){h+=practiceCard();if(!UI.quick)h+=quickCard();if(!UI.two)h+=twoCard();h+=proCard();}
   if(S.news.length)h+='<section class="card"><h3>News</h3><ul class="news">'+S.news.slice(0,8).map(n=>`<li>${esc(n)}</li>`).join('')+'</ul></section>';
   if(!UI.setup)h+=`<section class="card"><h3>Settings</h3>${settingsRow()}<p class="muted">Rookie is forgiving. Legend makes defenders faster to react, tackles surer, and the other team's quarterback sharper.</p></section><section class="card"><h3>Broadcast sound</h3>${voiceRow()}</section>`;
   h+=`<section class="card"><h3>How to play</h3><ul class="news"><li><b>Offense:</b> the coach suggests plays for the situation, or open the full playbook by type. Snap with <b>Space</b> or a tap, move with <b>WASD</b> or the arrow keys (drag on a phone). Each receiver has his own route color and number; press the number or tap him to throw. <b>Space</b> jukes.</li><li><b>Defense:</b> pick a coverage, then steer the player with the blue marker. Run into the ball carrier to tackle, press <b>Space</b> to dive at him, or press it as a pass arrives to swat it. <b>Q</b> switches to the defender nearest the ball.</li><li><b>After a touchdown:</b> choose a celebration, then kick the extra point or go for two.</li><li><b>X-Factors:</b> stars marked X switch on after a couple of good plays, shown by a gold ring and X. The bar at the bottom of the field shows who has the ball and whether his ability is on.</li><li><b>Clock:</b> after a play that ends in bounds the game clock keeps running while you pick the next play. Snap before the play clock hits zero or it's delay of game. Each team has 3 timeouts per half (press <b>T</b>). <b>Sim drive</b> plays out the rest of a possession for you.</li><li><b>Ball carrier moves:</b> Space jukes, E or F spins. Pick off a pass and you run it back.</li><li><b>Injuries:</b> now and then a player gets hurt and misses a few weeks. His backup starts until he's healthy.</li><li><b>Playbook:</b> two-back sets (Pro I, Split backs) and a Trick plays tab with a flea flicker, a reverse, hook and lateral, and, on fourth down, fake punts and fake field goals. At the line, Audible changes the play and Hot route changes one player's route.</li><li><b>Laterals and fumbles:</b> press <b>L</b> (or Pitch) to pitch the ball back to a teammate. Hard hits can knock the ball loose; steer your player onto it to recover.</li><li><b>Clock tools:</b> Hurry-up (<b>H</b>) keeps less time running between plays, Spike (<b>K</b>) stops the clock for a down, and you can try an onside kick when you kick off.</li><li><b>Weather:</b> rain and snow make the ball harder to throw, catch and hold; wind moves passes and kicks. Domes stay dry. Some games are at night.</li><li><b>Replays:</b> after any play press <b>R</b> (or Replay) to watch it again from four camera angles, in slow motion. After the game, watch the highlights.</li><li><b>Flags:</b> when the other team commits a foul you choose to accept the yards or decline and keep the play.</li><li><b>Captains and returner:</b> on the Roster tab, tap a player to make him a captain (up to 4, each plays 2 points better) or your kick returner.</li><li><b>Training points:</b> earned every game. Spend them on the Roster tab to raise ratings or sign free agents.</li></ul><div class="row"><button class="btn ghost sm" data-a="newFr">${UI.confirmNew?'Tap again to erase this franchise':'Start a new franchise'}</button></div></section>`;
@@ -205,6 +210,7 @@ const tmx=(g,team)=>{team=team||'U';const n=g.to?g.to[team]:0;return !g.ko&&!g.c
 const kn=(team,i)=>gm&&gm.two&&team==='A'?(i+5)%10:i;
 const pl=team=>gm&&gm.two?'Player '+(team==='U'?1:2)+' · '+esc((team==='U'?gm.U:gm.O).name):'';
 function renderPanel(){const p=$('#panel'),g=gm;if(!g){p.innerHTML='';return;}let h='';const uo=g.poss==='U',kb=t=>coarse?'':` <span class="kbd">${t}</span>`,ph=g.phase,off=g.two?g.poss:'U',def=off==='U'?'A':'U',k2=t=>g.two&&g.poss==='A'?({Space:'Enter',T:'P',R:'R',K:'K',H:'H'}[t]||t):t;
+  if(g.pro&&!g.two){const x=proPanel(g,kb);if(x!=null){p.className=ph==='live'?'live':'';p.innerHTML=x;return;}}
   if(ph==='huddle'){const offPick=g.two?g.hs==='O':uo,L=listed(),sit=SIT_NAME[situation()],tabs=offPick?GROUPS:[['S','Coach picks'],['Q','All calls']];
     const head=g.two?`<b>${offPick?pl(g.poss)+': pick a play':pl(def)+': pick a defense'}</b> · `:'';
     h='<div class="pbtabs">'+tabs.map(t=>`<button class="${g.tab===t[0]?'on':''}" data-a="pbtab" data-t="${t[0]}">${t[1]}</button>`).join('')+`<span class="muted">${head}${!offPick&&!g.two?esc(g.O.name)+' have the ball · ':''}${sit}${g.conv?' · Two-point try':''}${g.two?(offPick?' · '+pl(def)+', look away':' · '+pl(g.poss)+', look away'):''}</span></div>`;
@@ -249,8 +255,8 @@ const ACT={
   play(){openSetup();render();$('#view').scrollTop=0;},
   setupBack(){UI.setup=null;render();},
   uni(d){if(!UI.setup)return;UI.setup[d.s==='U'?'uU':'uO']=d.k;render();},
-  kickoff(){const su=UI.setup;if(!su)return;UI.setup=null;startGame(S.teams[su.opp],su.home,su.uU,su.uO);},
-  sim(){UI.setup=null;completeStep(false);render();},
+  kickoff(){const su=UI.setup;if(!su)return;UI.setup=null;const p=isPro()?proP():null;startGame(S.teams[su.opp],su.home,su.uU,su.uO,p?{pro:{id:p.id,pos:p.pos,n:p.n}}:undefined);},
+  sim(){UI.setup=null;if(isPro())proSimGame();else completeStep(false);render();},
   startDraft(){startDraft();UI.dpos='ALL';render();$('#view').scrollTop=0;},
   draftSim(){simDraftToUser();render();$('#view').scrollTop=0;},
   draftAuto(){if(S.phase==='draft'&&curPick().own===S.user)makePick(aiPick(S.teams[S.user]));render();},
@@ -285,9 +291,19 @@ const ACT={
   quickStart(){const q=UI.quick;if(!q||q.u===q.o)return;UI.quick=null;const H=S.teams[q.u],A=S.teams[q.o];startGame(A,true,'H',fixClash(A,'A',{T:H,key:'H'}),{quick:true,U:H,ql:q.ql});},koOnside(){kickoff('U',true);},onside(){if(gm&&gm.phase==='presnap'&&gm.ko){gm.onside=true;flash('Onside kick');renderPanel();}},
   drill(d){startDrill(d.k);},drillQuit(){if(gm&&gm.drill)finishDrill();},
   two(){const o=S.teams.find(t=>t.id!==S.user&&t.conf!==S.teams[S.user].conf)||S.teams[(S.user+1)%32];UI.two={h:S.user,a:o.id};render();$('#view').scrollTop=0;},twoBack(){UI.two=null;render();},
-  twoStart(){const T=UI.two;if(!T||T.h===T.a)return;UI.two=null;const H=S.teams[T.h],A=S.teams[T.a];startGame(A,true,'H',fixClash(A,'A',{T:H,key:'H'}),{two:true,U:H});},spin(){spin();},simDrive(){simDrive();},kneel(){kneel();},flag(d){flagPick(d.v==='1');},introSkip(){endIntro();},voiceTest(){testVoices();},
+  twoStart(){const T=UI.two;if(!T||T.h===T.a)return;UI.two=null;const H=S.teams[T.h],A=S.teams[T.a];startGame(A,true,'H',fixClash(A,'A',{T:H,key:'H'}),{two:true,U:H});},spin(){spin();},simDrive(){if(gm&&gm.pro&&gm.phase==='presnap'&&!gm.ko){gm.phase='huddle';}simDrive();},kneel(){kneel();},flag(d){flagPick(d.v==='1');},introSkip(){endIntro();},voiceTest(){testVoices();},
   edCap(){const p=byId(S.teams[S.user],UI.sel);if(!p)return;const e=toggleCaptain(p);UI.edMsg=e||(p.cap?p.n+' is now a captain.':'Captaincy removed.');UI.edOk=!e;render();},
   edKr(){const p=byId(S.teams[S.user],UI.sel);if(!p)return;setReturner(p);UI.edMsg=p.n+' will return kickoffs.';UI.edOk=true;render();},cele(d){celebrate(+d.i);},
+  toPro(){save();UI.tab='home';UI.setup=null;UI.quick=null;UI.two=null;UI.proMsg='';if(hasSave(KEYP)&&load('p')){render();$('#view').scrollTop=0;return;}S=null;UI.proNew=true;render();$('#view').scrollTop=0;},
+  toFr(){save();UI.tab='home';UI.proNew=false;UI.proMsg='';if(!load('f'))S=null;render();$('#view').scrollTop=0;},
+  pnOpen(){UI.proNew=true;render();$('#view').scrollTop=0;},pnBack(){UI.proNew=false;if(hasSave(KEYP)&&load('p')){}else if(!load('f'))S=null;render();},
+  pnPos(d){pnRead();UI.pn.pos=d.k;render();},
+  pnGo(){pnRead();const P=UI.pn;newPro(P.n,P.pos,P.num===''?-1:+P.num,+P.t);UI.proNew=false;UI.tab='home';UI.proMsg='';render();$('#view').scrollTop=0;},
+  proUp(d){const e=proUpgrade(d.k);const p=proP();UI.proMsg=e||(d.k==='spd'?'Speed is now '+p.spd+'.':'You are now '+p.ovr+' overall.');UI.proOk=!e;render();},
+  proAdv(){proAdvance();UI.proMsg='';render();$('#view').scrollTop=0;},
+  proRet(){if(!UI.confirmRet){UI.confirmRet=true;render();return;}UI.confirmRet=false;proRetire(false);render();$('#view').scrollTop=0;},
+  proTr(){const sel=$('#proTeam');const e=proTrade(sel?+sel.value:-1);UI.proMsg=e||'You have been traded to '+S.teams[S.user].name+'.';UI.proOk=!e;render();$('#view').scrollTop=0;},
+  pnNew(){if(!UI.confirmNew){UI.confirmNew=true;render();return;}UI.confirmNew=false;try{localStorage.removeItem(KEYP);}catch(e){}S=null;UI.proNew=true;UI.pn=null;render();$('#view').scrollTop=0;},
   cont(){cardGo();},punt(){punt();},fg(){tryFG(false);},kick(){kickNow();},simRest(){simRest();}};
 document.addEventListener('click',ev=>{const el=ev.target.closest('[data-a]');if(!el)return;const f=ACT[el.dataset.a];if(f)f(el.dataset);});
 document.addEventListener('keydown',ev=>{if(ev.key!=='Enter')return;const el=ev.target.closest&&ev.target.closest('tr[data-a]');if(el)ACT[el.dataset.a](el.dataset);else if(ev.target.id==='edName'||ev.target.id==='edNum')ACT.edSave();});
@@ -296,6 +312,67 @@ document.addEventListener('change',ev=>{const t=ev.target;
   else if(t.id==='setDiff'){S.diff=+t.value;save();}else if(t.id==='setSpeed'){S.speed=+t.value;save();}else if(t.id==='setDef'){S.playDef=t.value==='1';save();}else if(t.id==='setKo'){S.koRet=t.value==='1';save();}else if(t.id==='setTalk'){S.talk=+t.value;if(S.talk<2)hush();if(S.talk===3){const c=document.getElementById('cap');if(c)c.hidden=true;}save();}
   else if(t.id==='setV0'||t.id==='setV1'){const w=S.voice||['',''];w[t.id==='setV0'?0:1]=t.value;S.voice=w;voices=null;save();testVoices();}else if(t.id==='setVspd'){S.vspd=+t.value;save();testVoices();}else if(t.id==='setCrowd'){S.crowd=t.value==='1';save();}else if(t.id==='setQlen'){S.qlen=QLENS[+t.value]||4;save();}
   else if(t.id==='qkU'||t.id==='qkO'||t.id==='qkQl'){if(UI.quick){if(t.id==='qkQl')UI.quick.ql=QLENS[+t.value]||2;else UI.quick[t.id==='qkU'?'u':'o']=+t.value;render();}}
+  else if(t.id==='pnTeam')pnRead();
   else if(t.id==='twoH'||t.id==='twoA'){if(UI.two){UI.two[t.id==='twoH'?'h':'a']=+t.value;render();}}});
+document.addEventListener('input',ev=>{const t=ev.target;if(t.id==='pnName'||t.id==='pnNum')pnRead();});
 initInput();load();render();
 try{if(window.speechSynthesis)speechSynthesis.addEventListener('voiceschanged',()=>{voices=null;const a=document.activeElement;if(!gm&&S&&S.user>=0&&UI.tab==='home'&&!UI.setup&&!(a&&/SELECT|INPUT/.test(a.tagName)))render();});}catch(e){}
+
+// ===== Be a Pro screens =====
+function pnRead(){const P=UI.pn||(UI.pn={n:'',pos:'WR',num:'',t:-1}),a=$('#pnName'),b=$('#pnNum'),c=$('#pnTeam');if(a)P.n=a.value;if(b)P.num=b.value;if(c)P.t=+c.value;}
+function proCard(){const has=hasSave(KEYP);return `<section class="card"><p class="eyebrow">Be a Pro</p><h3>Play one player's career</h3><p class="muted">Create a rookie and play only his snaps. The coach calls the plays, you make them. Earn XP each game, spend skill points to get better, and chase the Hall of Fame.</p><div class="row"><button class="btn${S&&S.user>=0?' ghost':''}" data-a="${has||S&&S.user>=0?'toPro':'pnOpen'}">${has?'Continue your career':'Create a player'}</button></div></section>`;}
+function proNewCard(){const P=UI.pn||(UI.pn={n:'',pos:'WR',num:'',t:-1}),teams=S.teams.slice().sort((a,b)=>a.name.localeCompare(b.name));
+  return `<section class="card hero"><p class="eyebrow">Be a Pro</p><h2>One player. One career.</h2><p class="muted">You only control your own player. On offense the coach calls the plays and the computer runs everyone else; when it's your turn to have the ball, it's all you. When your side is off the field, the game moves along without you.</p></section>
+  <section class="card"><h3>Your position</h3><div class="posgrid">${PRO_POS.map(([k,n,d])=>`<button class="posb${P.pos===k?' on':''}" data-a="pnPos" data-k="${k}" aria-pressed="${P.pos===k}"><b>${n}</b><small>${d}</small></button>`).join('')}</div></section>
+  <section class="card"><h3>Your player</h3><div class="pform"><label><span>Name</span><input id="pnName" maxlength="22" autocomplete="off" placeholder="First and last name" value="${esc(P.n)}"></label><label><span>Number</span><input id="pnNum" type="number" min="0" max="99" inputmode="numeric" placeholder="Any" value="${esc(P.num)}"></label>
+  <label><span>Team</span><select id="pnTeam"><option value="-1">Let the draft decide</option>${teams.map(T=>`<option value="${T.id}"${P.t===T.id?' selected':''}>${T.name}</option>`).join('')}</select></label></div>
+  <p class="muted">You start as a 21-year-old rookie, about 70 overall, and you start every game. If the draft decides, one of the weaker teams picks you in the first round.</p>
+  <div class="row"><button class="btn" data-a="pnGo">Start your career</button><button class="btn ghost" data-a="${hasSave(KEY)||hasSave(KEYP)?'pnBack':'pnBack'}">Back</button></div></section>`;}
+function proSettingsRow(){const sel=(id,lab,opts,cur)=>`<span class="setp"><label for="${id}">${lab}</label><select id="${id}">${opts.map((o,i)=>`<option value="${i}"${cur===i?' selected':''}>${o}</option>`).join('')}</select></span>`;
+  return '<div class="row set">'+sel('setDiff','Difficulty',DIFFS,S.diff)+sel('setSpeed','Game speed',SPEEDS,S.speed)+sel('setTalk','Broadcast crew',['Off','Captions only','Voice and captions','Voice only'],S.talk)+sel('setQlen','Quarter length',QLENS.map(m=>m+' minutes'),Math.max(0,QLENS.indexOf(S.qlen||4)))+'</div>';}
+function renderPro(){const p=proP(),P=S.pro,T=S.teams[S.user];if(!p){S.pro.done={n:'Unknown',pos:'WR',ovr:0,num:0,hist:[],aw:[]};}
+  const q=proP();$('#top').innerHTML=`<div class="who">${sw(T,'lg')}<div><h1>${esc(q.n)}</h1><div class="meta">#${q.num} · ${q.pos} · ${P.done?'Retired':esc(T.name)} · ${S.season} · ${phaseName()}</div></div></div><div class="stat">${q.ovr}<small>Overall</small></div>`;
+  if(!['home','team','league'].includes(UI.tab))UI.tab='home';
+  $('#tabs').hidden=false;$('#tabs').innerHTML=[['home','Career'],['team','Team'],['league','League']].map(t=>`<button data-a="tab" data-t="${t[0]}" class="${UI.tab===t[0]?'on':''}">${t[1]}</button>`).join('');
+  ({home:vPro,team:vProTeam,league:vLeague})[UI.tab]();}
+function proPlayerCard(p){const P=S.pro,c=proCost(p),cs=proSpdCost(p),pct=Math.round(P.xp/PRO_XP*100);
+  return `<section class="card procard"><div class="pc-top"><div class="pc-num">${p.num}</div><div><h3>${esc(p.n)}</h3><p class="muted">${PRO_POS.find(x=>x[0]===p.pos)[1]} · age ${p.age} · ${devTag(p)} potential${p.xf?` · <span class="xf">X</span> ${XF[p.pos][0]}`:''}</p></div></div>
+  <div class="pc-stats"><div><b>${p.ovr}</b><small>Overall</small></div><div><b>${p.spd}</b><small>Speed</small></div><div><b>${P.sp}</b><small>Skill points</small></div><div><b>${P.games}</b><small>Games</small></div></div>
+  <div class="xpbar" role="progressbar" aria-valuemin="0" aria-valuemax="${PRO_XP}" aria-valuenow="${P.xp}" aria-label="XP toward the next skill point"><span style="width:${pct}%"></span></div><p class="muted">${P.xp} of ${PRO_XP} XP to the next skill point.${p.xf?'':' At '+XF_OVR+' overall you earn the '+XF[p.pos][0]+' X-Factor: '+XF[p.pos][1]}</p>
+  ${P.done?'':`<div class="row"><button class="btn sm" data-a="proUp" data-k="ovr"${c&&P.sp>=c?'':' disabled'}>${c?'+1 overall ('+c+' pt'+(c>1?'s':'')+')':'Overall maxed'}</button><button class="btn ghost sm" data-a="proUp" data-k="spd"${cs&&P.sp>=cs?'':' disabled'}>${cs?'+1 speed ('+cs+' pt'+(cs>1?'s':'')+')':'Speed maxed'}</button>${UI.proMsg?`<span class="${UI.proOk?'good':'bad'}">${esc(UI.proMsg)}</span>`:''}</div>`}</section>`;}
+function vPro(){const p=proP(),P=S.pro,T=S.teams[S.user],r=ratings(T);let h='<div class="wrap">';
+  if(P.done){const d=P.done,c=careerLine(d);
+    h+=`<section class="card hero"><p class="eyebrow">Career over</p><h2>${esc(d.n)} retires</h2><p>${esc(c)}.</p>${(d.aw||[]).length?`<p><b>Awards:</b> ${d.aw.map(esc).join(' · ')}</p>`:'<p class="muted">No major awards.</p>'}<p class="${d.hof?'good':'muted'}">${d.hof?'Inducted into the Hall of Fame.':'Not inducted into the Hall of Fame.'}</p><div class="row"><button class="btn" data-a="pnNew">${UI.confirmNew?'Tap again to start over':'Start a new pro'}</button>${hasSave(KEY)?'<button class="btn ghost" data-a="toFr">Go to your franchise</button>':''}</div></section>`;
+    h+=`<section class="card"><h3>Career</h3>${careerTable(d)||'<p class="muted">No seasons recorded.</p>'}</section>`+historyCards();$('#view').innerHTML=h+'</div>';return;}
+  if(S.phase==='offseason'){const ch=S.teams[S.champ],others=S.teams.filter(t=>t.id!==S.user).sort((a,b)=>a.name.localeCompare(b.name));
+    h+=`<section class="card hero"><p class="eyebrow">${S.season} season complete</p><h2>${ch.id===S.user?'You won the Gridiron Bowl!':esc(ch.name)+' won the Gridiron Bowl'}</h2><p>Your season: ${esc(statLine(p,T))}.</p><p class="muted">Next season you'll be ${p.age+1}. Young players get better every offseason; after about 30, they start to slow down. The league drafts and fills rosters for you.</p>
+    <div class="row"><button class="btn" data-a="proAdv">Start the ${S.season+1} season</button>${p.age>=30?`<button class="btn ghost" data-a="proRet">${UI.confirmRet?'Tap again to retire':'Retire'}</button>`:''}</div>
+    <div class="row sp"><label for="proTeam" class="muted">Request a trade to</label><select id="proTeam">${others.map(t=>`<option value="${t.id}">${t.name}</option>`).join('')}</select><button class="btn ghost sm" data-a="proTr">Request trade</button></div></section>`;}
+  else{const m=userMatch(),lab=S.phase==='regular'?'Week '+(S.week+1)+' of '+S.schedule.length:roundName();
+    if(m&&UI.setup)h+=setupCard(lab).replace(settingsRow(),proSettingsRow());
+    else if(m){const home=m.h===S.user,opp=S.teams[home?m.a:m.h];
+      h+=`<section class="card hero"><p class="eyebrow">${lab} · ${home?'Home':'Away'}</p><div class="match">${teamBlock(T,r)}<span class="vs">${home?'vs':'at'}</span>${teamBlock(opp,ratings(opp))}</div>
+      <p class="eyebrow">Game goals · 50 XP each</p><ul class="news goals">${(P.goals||[]).map(g=>`<li>${esc(g.t)}</li>`).join('')}</ul>
+      <div class="row"><button class="btn" data-a="play">Play game</button><button class="btn ghost" data-a="sim">Sim game</button></div><p class="muted">A simmed game earns ${35} XP, plus 15 for a win. Playing earns XP for everything you do.</p></section>`;}
+    else if(S.phase==='regular')h+=`<section class="card hero"><p class="eyebrow">${lab}</p><h2>Bye week</h2><p class="muted">No game this week. Rest up.</p><div class="row"><button class="btn" data-a="sim">Continue</button></div></section>`;
+    else{const alive=S.po&&(S.po.alive.A.includes(S.user)||S.po.alive.N.includes(S.user));h+=`<section class="card hero"><p class="eyebrow">${lab}</p><h2>${alive?'First-round bye':'Your season is over'}</h2><p class="muted">${alive?'Your team earned a week off.':'Your team missed out. Watch the rest of the playoffs.'}</p><div class="row"><button class="btn" data-a="sim">${alive?'Continue':'Sim this round'}</button></div></section>`;}}
+  if(!UI.setup)h+=proPlayerCard(p);
+  const L=P.last;if(L&&!UI.setup)h+=`<section class="card"><h3>Last game</h3><p><b>${esc(L.res)}</b>${L.sim?' · simmed':''}</p>${L.line?`<p>${esc(L.line)}</p>`:''}${(L.goals||[]).length?'<ul class="news goals">'+L.goals.map(g=>`<li class="${g.ok?'good':'muted'}">${g.ok?'✓':'✗'} ${esc(g.t)}</li>`).join('')+'</ul>':''}<p class="muted">+${L.xp} XP${L.sp?' · '+L.sp+' new skill point'+(L.sp>1?'s':''):''}</p></section>`;
+  if(!UI.setup){h+=`<section class="card"><h3>${S.season} season</h3><p>${esc(proSeasonLine(p,T))}${S.week&&S.phase==='regular'&&S.week>(S.gpU||0)?' <span class="muted">(simmed games are estimated)</span>':''}</p>${careerTable(p)}${(p.aw||[]).length?`<p><b>Awards:</b> ${p.aw.slice(-8).map(esc).join(' · ')}</p>`:''}</section>`;
+    if(S.news.length)h+='<section class="card"><h3>News</h3><ul class="news">'+S.news.slice(0,8).map(n=>`<li>${esc(n)}</li>`).join('')+'</ul></section>';
+    h+=`<section class="card"><h3>Settings</h3>${proSettingsRow()}</section><section class="card"><h3>Broadcast sound</h3>${voiceRow()}</section>`;
+    h+=`<section class="card"><h3>How Be a Pro works</h3><ul class="news"><li><b>You are one player.</b> A gold marker and YOU sit over him. Only he takes your controls.</li><li><b>Quarterback:</b> you call the plays and throw, just like franchise mode. After a handoff or a catch, the computer runs with it.</li><li><b>Running back, receiver or tight end:</b> the coach calls the play and tells you your job. Press Ready (Space) to snap. Routes run on their own; when the ball comes to you, it's yours: move, juke (Space), spin (E) and pitch (L).</li><li><b>Defense:</b> the coach picks the call; you play it. Move with WASD or the arrows, dive or swat with Space.</li><li><b>When your side is off the field</b>, the other half of the game is simulated so you only play your own snaps. Kicks are automatic.</li><li><b>XP:</b> every catch, yard, tackle and touchdown earns XP, each game goal met earns 50, and a win adds 25. Every ${PRO_XP} XP is a skill point to spend on overall or speed.</li><li><b>Seasons:</b> awards are based on how you play. Retire any time after 30, or play until 40, and see if you make the Hall of Fame.</li></ul>
+    <div class="row">${hasSave(KEY)?'<button class="btn ghost sm" data-a="toFr">Go to your franchise</button>':''}<button class="btn ghost sm" data-a="pnNew">${UI.confirmNew?'Tap again to erase this career':'Start a new pro'}</button></div></section>`;}
+  $('#view').innerHTML=h+'</div>';}
+function vProTeam(){const T=S.teams[S.user],r=ratings(T),me=S.pro.id;let h=`<div class="wrap"><section class="card"><div class="match">${teamBlock(T,r)}</div><p class="muted">Your coach runs the roster. Starters are marked.</p><div class="scroll"><table class="tbl"><thead><tr><th class="l">Pos</th><th>#</th><th class="l">Player</th><th>Age</th><th>Ovr</th><th>Spd</th></tr></thead><tbody>`;
+  for(const p of T.roster.slice().sort((a,b)=>posRank(a)-posRank(b))){const st=isStarter(T,p);h+=`<tr class="${p.id===me?'me':''}"><td class="l">${p.pos}</td><td>${p.num}</td><td class="l">${st?'<b>':''}${esc(p.n)}${st?'</b>':''}${xfTag(p)}${p.id===me?' <span class="chip">You</span>':''}${p.inj?' <span class="tag inj">Out '+p.inj+'</span>':''}</td><td>${p.age}</td><td>${p.ovr}</td><td>${p.spd}</td></tr>`;}
+  $('#view').innerHTML=h+'</tbody></table></div></section></div>';}
+
+function proPanel(g,kb){const ph=g.phase,uo=g.poss==='U',P=g.pro,pe=proEnt();if(g.ko||!pe)return null;
+  const call=uo?g.play.n:DCALLS[g.defCall].n,sim='<button class="btn ghost sm" data-a="simDrive">Sim drive</button>';
+  if(ph==='presnap'&&(!uo||P.pos!=='QB'))return `<div class="row"><button class="btn" data-a="snap">Ready${kb('Space')}</button>${sim}<span class="muted">Coach's call: <b>${esc(call)}</b>. ${proJob(g)}</span></div>`;
+  if(ph!=='live'||g.loose)return null;const c=g.carrier,b=g.ball;
+  if(c===pe&&(g.ret||g.mode==='run'))return coarse?`<div class="pad"><span class="muted">${g.ret?'Run it back! ':''}Drag to steer.</span><span class="row"><button class="btn ghost" data-a="lateral">Pitch</button><button class="btn ghost" data-a="spin">Spin</button><button class="btn" data-a="juke">Juke</button></span></div>`:`<div class="row"><span class="muted">${g.ret?'Run it back! ':'It\'s yours! '}Move: WASD or arrows. Juke: Space. Spin: E or F. Pitch it back: L.</span></div>`;
+  if(c===pe)return null;
+  if(g.ctl===pe&&!(c&&c.team==='U'))return coarse?`<div class="pad"><span class="muted">${g.ret?'Chase him down! ':''}Drag to move.</span><span class="row"><button class="btn" data-a="dive">Tackle</button></span></div>`:`<div class="row"><span class="muted">${g.ret?'Chase him down! ':''}Move: WASD or arrows. Dive tackle${uo?'':' or swat a pass'}: Space.</span></div>`;
+  return `<div class="row"><span class="muted">${b&&b.fly&&b.target===pe?'Here it comes. Look for it!':uo?'Keep working. You take over if the ball comes to you.':'Your teammate has it.'}</span></div>`;}

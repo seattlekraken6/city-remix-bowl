@@ -17,6 +17,7 @@ A 3D low-poly football game that runs in the browser. One file, no dependencies.
 - Season stats for every player, league records, champions and a Hall of Fame
 - Two-player games on one keyboard and practice drills that earn training points
 - A kickoff power meter and quick games against the computer with any two teams
+- Be a Pro: create one player and play his whole career, with game goals, XP, skill points, trade requests, retirement and a shot at the Hall of Fame
 
 ## Run it
 
