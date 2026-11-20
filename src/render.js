@@ -86,7 +86,7 @@ function line3(x1,y1,z1,x2,y2,z2,lw,col){let a=toCam(x1,y1,z1),b=toCam(x2,y2,z2)
   if(a[2]<NEAR){const t=(NEAR-a[2])/(b[2]-a[2]);a=[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,NEAR];}else if(b[2]<NEAR){const t=(NEAR-b[2])/(a[2]-b[2]);b=[b[0]+(a[0]-b[0])*t,b[1]+(a[1]-b[1])*t,NEAR];}
   const pa=proj(a),pb=proj(b);ctx.strokeStyle=col;ctx.lineCap='butt';ctx.lineWidth=Math.max(1,lw*DPR*Math.min(2.5,70/((a[2]+b[2])/2)));ctx.beginPath();ctx.moveTo(pa[0],pa[1]);ctx.lineTo(pb[0],pb[1]);ctx.stroke();}
 const wall=(x1,x2,y1,y2,z,col)=>poly3([[x1,y1,z],[x2,y1,z],[x2,y2,z],[x1,y2,z]],col);
-const stadOf=T=>STAD[T.abbr]||['O','#3a4350','none',70,''];
+const stadOf=T=>T.stad||STAD[T.abbr]||['O','#3a4350','none',70,''];
 const openEnd=f=>f==='sky'||f==='water'||f==='mtn'||f==='palm'||f==='light'||f==='ship';
 function buildCrowd(T){crowd=[];const cols=[T.c1,T.c2,'#e9e9e9','#d8b48a','#2b2f36','#9aa6b4',T.c1],far=openEnd(stadOf(T)[2])?1:3;
   for(let i=0;i<900;i++){let tier=rint(0,3);const u=Math.random(),col=pick(cols);let x,z;

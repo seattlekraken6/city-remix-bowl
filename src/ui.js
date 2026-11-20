@@ -6,7 +6,7 @@ const coarse=window.matchMedia&&matchMedia('(pointer:coarse)').matches;
 // Franchise and Be a Pro keep separate saves; the last one used opens first.
 const KEYP='cityGridiron.pro',KEYL='cityGridiron.last';
 function save(){if(!S||S.user<0)return;S.nid=NID;try{localStorage.setItem(S.mode==='pro'?KEYP:KEY,JSON.stringify(S));localStorage.setItem(KEYL,S.mode==='pro'?'p':'f');}catch(e){}}
-function loadKey(k){try{const s=localStorage.getItem(k);if(s){const o=JSON.parse(s);if(o&&(o.v>=2&&o.v<=5)&&o.teams&&o.teams.length===32&&o.user>=0){S=o;NID=S.nid||1;if(S.v<5){migrate();save();}return true;}}}catch(e){}return false;}
+function loadKey(k){try{const s=localStorage.getItem(k);if(s){const o=JSON.parse(s);if(o&&(o.v>=2&&o.v<=6)&&o.teams&&o.teams.length===32&&o.user>=0){S=o;NID=S.nid||1;if(S.v<6){migrate();save();}return true;}}}catch(e){}return false;}
 function load(which){let w=which;if(!w){try{w=localStorage.getItem(KEYL);}catch(e){}w=w||'f';}const ok=loadKey(w==='p'?KEYP:KEY)||(!which&&loadKey(w==='p'?KEY:KEYP));if(ok){try{localStorage.setItem(KEYL,S.mode==='pro'?'p':'f');}catch(e){}}return ok;}
 const hasSave=k=>{try{return !!localStorage.getItem(k);}catch(e){return false;}};
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -14,7 +14,7 @@ const sw=(T,c)=>`<span class="sw${c?' '+c:''}" style="--a:${T.c1};--b:${T.c2}"><
 const byId=(T,id)=>T.roster.find(p=>p.id===id);
 const pkById=id=>S.picks.find(k=>k.id===id);
 const posRank=p=>POS_ORDER.indexOf(p.pos)*1000-p.ovr;
-const xfTag=p=>p.xf?' <span class="xf" title="X-Factor: '+XF[p.pos][0]+'">X</span>':'';
+const xfTag=p=>p.xf?' <span class="xf" title="X-Factor: '+xfName(p)+'">X</span>':'';
 const devTag=p=>`<span class="dev d${p.dev}">${DEV[p.dev]}</span>`;
 const phaseName=()=>S.phase==='regular'?'Week '+(S.week+1):S.phase==='playoffs'?roundName():S.phase==='draft'?S.draft.yr+' draft':S.phase==='preseason'?'Preseason':'Offseason';
 const FILT={ALL:POS_ORDER,OFF:['QB','RB','WR','TE','OL'],DEF:['DL','LB','CB','S'],K:['K']};
@@ -34,12 +34,12 @@ function renderPick(){if(!S)newLeague();
 function teamBlock(T,r){return `<div class="tb">${sw(T,'lg')}<div><b>${T.name}</b><span>${T.w}-${T.l}</span><div class="chips"><span class="chip">OFF ${r.off}</span><span class="chip">DEF ${r.def}</span></div></div></div>`;}
 
 // ----- uniforms -----
-function uniSvg(T,key){const u=UNI[T.abbr][key];return `<svg viewBox="0 0 44 70" aria-hidden="true"><rect x="14" y="44" width="16" height="16" fill="${u[2]}" stroke="#0006" stroke-width=".6"/><rect x="15" y="60" width="5" height="8" fill="${lum(u[0])>0.8?u[4]:u[0]}"/><rect x="24" y="60" width="5" height="8" fill="${lum(u[0])>0.8?u[4]:u[0]}"/>
+function uniSvg(T,key){const u=uniOf(T)[key];return `<svg viewBox="0 0 44 70" aria-hidden="true"><rect x="14" y="44" width="16" height="16" fill="${u[2]}" stroke="#0006" stroke-width=".6"/><rect x="15" y="60" width="5" height="8" fill="${lum(u[0])>0.8?u[4]:u[0]}"/><rect x="24" y="60" width="5" height="8" fill="${lum(u[0])>0.8?u[4]:u[0]}"/>
   <path d="M4 18h36v10h-6v17H10V28H4z" fill="${u[0]}" stroke="#0006" stroke-width=".6"/><rect x="4" y="24" width="6" height="3" fill="${u[4]}"/><rect x="34" y="24" width="6" height="3" fill="${u[4]}"/>
   <text x="22" y="39" text-anchor="middle" font-size="13" font-weight="700" font-family="Barlow Condensed,Arial Narrow,sans-serif" fill="${u[1]}">12</text>
   <rect x="13" y="2" width="18" height="15" rx="6" fill="${u[3]}" stroke="#0006" stroke-width=".6"/><rect x="21" y="2" width="2" height="15" fill="${u[4]}"/><rect x="17" y="12" width="10" height="3.5" fill="#22262b"/></svg>`;}
-function fixClash(T,key,other){const j=UNI[other.T.abbr][other.key][0];if(colDist(UNI[T.abbr][key][0],j)>=110)return key;
-  let best=key,bd=-1;for(const k of ['A','H','X','R']){const d=colDist(UNI[T.abbr][k][0],j);if(d>bd){bd=d;best=k;}}return best;}
+function fixClash(T,key,other){const j=uniOf(other.T)[other.key][0];if(colDist(uniOf(T)[key][0],j)>=110)return key;
+  let best=key,bd=-1;for(const k of ['A','H','X','R']){const d=colDist(uniOf(T)[k][0],j);if(d>bd){bd=d;best=k;}}return best;}
 function openSetup(){const m=userMatch();if(!m)return;const home=m.h===S.user,U=S.teams[S.user],O=S.teams[home?m.a:m.h];
   const uU=home?'H':fixClash(U,'A',{T:O,key:'H'});UI.setup={home,opp:O.id,uU,uO:fixClash(O,home?'A':'H',{T:U,key:uU})};}
 function uniPicker(T,cur,side){return `<div class="unicol"><h3>${T.name}</h3><div class="unirow">`+['H','A','X','R'].map(k=>`<button class="uni${cur===k?' on':''}" data-a="uni" data-s="${side}" data-k="${k}" aria-pressed="${cur===k}">${uniSvg(T,k)}<span>${UNI_NAMES[k]}</span></button>`).join('')+'</div></div>';}
@@ -122,7 +122,7 @@ function vHome(){if(S.phase==='draft')return vDraft();const U=S.teams[S.user],r=
 function editor(U){const p=byId(U,UI.sel);if(!p){UI.sel=null;return '';}const c=upgradeCost(p);
   return `<section class="card edit"><div class="row"><h3>${esc(p.n)}</h3><span class="muted">${p.pos} · ${p.ovr} overall · age ${p.age} · speed ${p.spd}</span></div>
   <p>${devTag(p)} potential${p.age<=25?', projected to reach about '+p.pot+' overall':''}. ${p.dev==='F'?'Improves fastest and is cheaper to upgrade.':p.dev==='E'?'Improves quickly each offseason.':p.dev==='S'?'Improves steadily each offseason.':'Improves slowly.'}</p>
-  ${p.xf?`<p><span class="xf">X</span> <b>${XF[p.pos][0]}.</b> ${XF[p.pos][1]}</p>`:`<p class="muted">Earns the ${XF[p.pos][0]} X-Factor at ${XF_OVR} overall.</p>`}
+  ${p.xf?`<p><span class="xf">X</span> <b>${xfName(p)}.</b> ${xfDesc(p)}</p>`:`<p class="muted">Earns an X-Factor at ${XF_OVR} overall (one of ${XFS[p.pos].map(x=>x[1]).join(', ')}).</p>`}
   ${p.aw&&p.aw.length?`<p><b>Awards:</b> ${p.aw.slice(-6).map(esc).join(' · ')}</p>`:''}${p.cap?'<p><span class="tag cap">C</span> Team captain: plays 2 points above his rating.</p>':''}${p.inj?'<p><span class="tag inj">Injured</span> Out '+p.inj+(p.inj===1?' more week. A healthy backup starts in his place.':' more weeks. A healthy backup starts in his place.')+'</p>':''}
   ${careerTable(p)}
   <div class="row"><label for="edName">Name</label><input id="edName" value="${esc(p.n)}" maxlength="22" autocomplete="off"><label for="edNum">Number</label><input id="edNum" type="number" min="0" max="99" value="${p.num}" inputmode="numeric"><button class="btn sm" data-a="edSave">Save</button></div>
@@ -252,11 +252,16 @@ function togAsset(arr,id){const tr=UI.tr,i=arr.indexOf(id),mine=arr===tr.give||a
 const ACT={
   pick(d){UI.two=null;S.user=+d.id;UI.tab='home';S.news=['Welcome to '+S.teams[S.user].name+'. Trades are open until week '+TRADE_DEADLINE+'. You start with '+S.tp+' training points.'];save();render();},
   tab(d){UI.tab=d.t;UI.confirmNew=false;UI.tr.msg='';UI.edMsg='';UI.faMsg='';render();$('#view').scrollTop=0;},
-  play(){openSetup();render();$('#view').scrollTop=0;},
+  play(){if(onRoad()){roadPlay();return;}openSetup();render();$('#view').scrollTop=0;},
   setupBack(){UI.setup=null;render();},
   uni(d){if(!UI.setup)return;UI.setup[d.s==='U'?'uU':'uO']=d.k;render();},
   kickoff(){const su=UI.setup;if(!su)return;UI.setup=null;const p=isPro()?proP():null;startGame(S.teams[su.opp],su.home,su.uU,su.uO,p?{pro:{id:p.id,pos:p.pos,n:p.n}}:undefined);},
-  sim(){UI.setup=null;if(isPro())proSimGame();else completeStep(false);render();},
+  sim(){UI.setup=null;if(onRoad())roadSim();else if(isPro())proSimGame();else completeStep(false);render();},
+  roadAll(){let g=0;while(onRoad()&&roadMatch()&&g++<20)roadSim();render();$('#view').scrollTop=0;},
+  roadNext(){roadNext();render();$('#view').scrollTop=0;},roadDeclare(){roadDeclare();render();$('#view').scrollTop=0;},
+  roadCommit(d){roadCommit(+d.k);UI.tab='home';render();$('#view').scrollTop=0;},roadDraft(){roadDraft();render();$('#view').scrollTop=0;},roadNFL(){roadToNFL();UI.tab='home';render();$('#view').scrollTop=0;},
+  proXF(d){const e=proXF(d.k);UI.proMsg=e||'X-Factor equipped: '+xfName(proP())+'.';UI.proOk=!e;render();},
+  pnStart(d){pnRead();UI.pn.start=d.k;render();},
   startDraft(){startDraft();UI.dpos='ALL';render();$('#view').scrollTop=0;},
   draftSim(){simDraftToUser();render();$('#view').scrollTop=0;},
   draftAuto(){if(S.phase==='draft'&&curPick().own===S.user)makePick(aiPick(S.teams[S.user]));render();},
@@ -298,7 +303,7 @@ const ACT={
   toFr(){save();UI.tab='home';UI.proNew=false;UI.proMsg='';if(!load('f'))S=null;render();$('#view').scrollTop=0;},
   pnOpen(){UI.proNew=true;render();$('#view').scrollTop=0;},pnBack(){UI.proNew=false;if(hasSave(KEYP)&&load('p')){}else if(!load('f'))S=null;render();},
   pnPos(d){pnRead();UI.pn.pos=d.k;render();},
-  pnGo(){pnRead();const P=UI.pn;newPro(P.n,P.pos,P.num===''?-1:+P.num,+P.t);UI.proNew=false;UI.tab='home';UI.proMsg='';render();$('#view').scrollTop=0;},
+  pnGo(){pnRead();const P=UI.pn;if(P.start==='nfl')newPro(P.n,P.pos,P.num===''?-1:+P.num,+P.t);else newRoadPro(P.n,P.pos,P.num===''?-1:+P.num,P.hs);UI.proNew=false;UI.tab='home';UI.proMsg='';render();$('#view').scrollTop=0;},
   proUp(d){const e=proUpgrade(d.k);const p=proP();UI.proMsg=e||(d.k==='spd'?'Speed is now '+p.spd+'.':'You are now '+p.ovr+' overall.');UI.proOk=!e;render();},
   proAdv(){proAdvance();UI.proMsg='';render();$('#view').scrollTop=0;},
   proRet(){if(!UI.confirmRet){UI.confirmRet=true;render();return;}UI.confirmRet=false;proRetire(false);render();$('#view').scrollTop=0;},
@@ -319,35 +324,37 @@ initInput();load();render();
 try{if(window.speechSynthesis)speechSynthesis.addEventListener('voiceschanged',()=>{voices=null;const a=document.activeElement;if(!gm&&S&&S.user>=0&&UI.tab==='home'&&!UI.setup&&!(a&&/SELECT|INPUT/.test(a.tagName)))render();});}catch(e){}
 
 // ===== Be a Pro screens =====
-function pnRead(){const P=UI.pn||(UI.pn={n:'',pos:'WR',num:'',t:-1}),a=$('#pnName'),b=$('#pnNum'),c=$('#pnTeam');if(a)P.n=a.value;if(b)P.num=b.value;if(c)P.t=+c.value;}
+const pnDef=()=>UI.pn||(UI.pn={n:'',pos:'WR',num:'',t:-1,start:'hs',hs:''});
+function pnRead(){const P=pnDef(),a=$('#pnName'),b=$('#pnNum'),c=$('#pnTeam'),d=$('#pnHS');if(a)P.n=a.value;if(b)P.num=b.value;if(c)P.t=+c.value;if(d)P.hs=d.value;}
 function proCard(){const has=hasSave(KEYP);return `<section class="card"><p class="eyebrow">Be a Pro</p><h3>Play one player's career</h3><p class="muted">Create a rookie and play only his snaps. The coach calls the plays, you make them. Earn XP each game, spend skill points to get better, and chase the Hall of Fame.</p><div class="row"><button class="btn${S&&S.user>=0?' ghost':''}" data-a="${has||S&&S.user>=0?'toPro':'pnOpen'}">${has?'Continue your career':'Create a player'}</button></div></section>`;}
-function proNewCard(){const P=UI.pn||(UI.pn={n:'',pos:'WR',num:'',t:-1}),teams=S.teams.slice().sort((a,b)=>a.name.localeCompare(b.name));
+function proNewCard(){const P=pnDef(),teams=S.teams.slice().sort((a,b)=>a.name.localeCompare(b.name));
   return `<section class="card hero"><p class="eyebrow">Be a Pro</p><h2>One player. One career.</h2><p class="muted">You only control your own player. On offense the coach calls the plays and the computer runs everyone else; when it's your turn to have the ball, it's all you. When your side is off the field, the game moves along without you.</p></section>
+  <section class="card"><h3>Where you start</h3><div class="posgrid two">${[['hs','High school','Senior year. Earn a scholarship, play college ball, then hear your name called at the draft.'],['nfl','NFL rookie','Skip ahead and start as a first-year pro.']].map(([k,n,d])=>`<button class="posb${P.start===k?' on':''}" data-a="pnStart" data-k="${k}" aria-pressed="${P.start===k}"><b>${n}</b><small>${d}</small></button>`).join('')}</div></section>
   <section class="card"><h3>Your position</h3><div class="posgrid">${PRO_POS.map(([k,n,d])=>`<button class="posb${P.pos===k?' on':''}" data-a="pnPos" data-k="${k}" aria-pressed="${P.pos===k}"><b>${n}</b><small>${d}</small></button>`).join('')}</div></section>
   <section class="card"><h3>Your player</h3><div class="pform"><label><span>Name</span><input id="pnName" maxlength="22" autocomplete="off" placeholder="First and last name" value="${esc(P.n)}"></label><label><span>Number</span><input id="pnNum" type="number" min="0" max="99" inputmode="numeric" placeholder="Any" value="${esc(P.num)}"></label>
-  <label><span>Team</span><select id="pnTeam"><option value="-1">Let the draft decide</option>${teams.map(T=>`<option value="${T.id}"${P.t===T.id?' selected':''}>${T.name}</option>`).join('')}</select></label></div>
-  <p class="muted">You start as a 21-year-old rookie, about 70 overall, and you start every game. If the draft decides, one of the weaker teams picks you in the first round.</p>
+  ${P.start==='nfl'?`<label><span>Team</span><select id="pnTeam"><option value="-1">Let the draft decide</option>${teams.map(T=>`<option value="${T.id}"${P.t===T.id?' selected':''}>${T.name}</option>`).join('')}</select></label>`:`<label><span>High school</span><input id="pnHS" maxlength="24" autocomplete="off" placeholder="Any name, like Lincoln" value="${esc(P.hs)}"></label>`}</div>
+  <p class="muted">${P.start==='nfl'?'You start as a 21-year-old rookie, about 70 overall, and you start every game. If the draft decides, one of the weaker teams picks you in the first round.':'You start as a 17-year-old senior, about 56 overall, and you start every game. Play well for scholarship offers, pick your college, and after your junior or senior year, declare for the NFL Draft.'}</p>
   <div class="row"><button class="btn" data-a="pnGo">Start your career</button><button class="btn ghost" data-a="${hasSave(KEY)||hasSave(KEYP)?'pnBack':'pnBack'}">Back</button></div></section>`;}
 function proSettingsRow(){const sel=(id,lab,opts,cur)=>`<span class="setp"><label for="${id}">${lab}</label><select id="${id}">${opts.map((o,i)=>`<option value="${i}"${cur===i?' selected':''}>${o}</option>`).join('')}</select></span>`;
   return '<div class="row set">'+sel('setDiff','Difficulty',DIFFS,S.diff)+sel('setSpeed','Game speed',SPEEDS,S.speed)+sel('setTalk','Broadcast crew',['Off','Captions only','Voice and captions','Voice only'],S.talk)+sel('setQlen','Quarter length',QLENS.map(m=>m+' minutes'),Math.max(0,QLENS.indexOf(S.qlen||4)))+'</div>';}
-function renderPro(){const p=proP(),P=S.pro,T=S.teams[S.user];if(!p){S.pro.done={n:'Unknown',pos:'WR',ovr:0,num:0,hist:[],aw:[]};}
+function renderPro(){if(onRoad())return renderRoad();const p=proP(),P=S.pro,T=S.teams[S.user];P.xfs=P.xfs||[];if(!p){S.pro.done={n:'Unknown',pos:'WR',ovr:0,num:0,hist:[],aw:[]};}
   const q=proP();$('#top').innerHTML=`<div class="who">${sw(T,'lg')}<div><h1>${esc(q.n)}</h1><div class="meta">#${q.num} · ${q.pos} · ${P.done?'Retired':esc(T.name)} · ${S.season} · ${phaseName()}</div></div></div><div class="stat">${q.ovr}<small>Overall</small></div>`;
   if(!['home','team','league'].includes(UI.tab))UI.tab='home';
   $('#tabs').hidden=false;$('#tabs').innerHTML=[['home','Career'],['team','Team'],['league','League']].map(t=>`<button data-a="tab" data-t="${t[0]}" class="${UI.tab===t[0]?'on':''}">${t[1]}</button>`).join('');
   ({home:vPro,team:vProTeam,league:vLeague})[UI.tab]();}
 function proPlayerCard(p){const P=S.pro,c=proCost(p),cs=proSpdCost(p),pct=Math.round(P.xp/PRO_XP*100);
-  return `<section class="card procard"><div class="pc-top"><div class="pc-num">${p.num}</div><div><h3>${esc(p.n)}</h3><p class="muted">${PRO_POS.find(x=>x[0]===p.pos)[1]} · age ${p.age} · ${devTag(p)} potential${p.xf?` · <span class="xf">X</span> ${XF[p.pos][0]}`:''}</p></div></div>
+  return `<section class="card procard"><div class="pc-top"><div class="pc-num">${p.num}</div><div><h3>${esc(p.n)}</h3><p class="muted">${PRO_POS.find(x=>x[0]===p.pos)[1]} · age ${p.age} · ${devTag(p)} potential${p.xf?` · <span class="xf">X</span> ${xfName(p)}`:''}</p></div></div>
   <div class="pc-stats"><div><b>${p.ovr}</b><small>Overall</small></div><div><b>${p.spd}</b><small>Speed</small></div><div><b>${P.sp}</b><small>Skill points</small></div><div><b>${P.games}</b><small>Games</small></div></div>
-  <div class="xpbar" role="progressbar" aria-valuemin="0" aria-valuemax="${PRO_XP}" aria-valuenow="${P.xp}" aria-label="XP toward the next skill point"><span style="width:${pct}%"></span></div><p class="muted">${P.xp} of ${PRO_XP} XP to the next skill point.${p.xf?'':' At '+XF_OVR+' overall you earn the '+XF[p.pos][0]+' X-Factor: '+XF[p.pos][1]}</p>
-  ${P.done?'':`<div class="row"><button class="btn sm" data-a="proUp" data-k="ovr"${c&&P.sp>=c?'':' disabled'}>${c?'+1 overall ('+c+' pt'+(c>1?'s':'')+')':'Overall maxed'}</button><button class="btn ghost sm" data-a="proUp" data-k="spd"${cs&&P.sp>=cs?'':' disabled'}>${cs?'+1 speed ('+cs+' pt'+(cs>1?'s':'')+')':'Speed maxed'}</button>${UI.proMsg?`<span class="${UI.proOk?'good':'bad'}">${esc(UI.proMsg)}</span>`:''}</div>`}</section>`;}
+  <div class="xpbar" role="progressbar" aria-valuemin="0" aria-valuemax="${PRO_XP}" aria-valuenow="${P.xp}" aria-label="XP toward the next skill point"><span style="width:${pct}%"></span></div><p class="muted">${P.xp} of ${PRO_XP} XP to the next skill point.</p>
+  ${P.done?'':`<div class="row"><button class="btn sm" data-a="proUp" data-k="ovr"${c&&P.sp>=c?'':' disabled'}>${c?'+1 overall ('+c+' pt'+(c>1?'s':'')+')':'Overall maxed'}</button><button class="btn ghost sm" data-a="proUp" data-k="spd"${cs&&P.sp>=cs?'':' disabled'}>${cs?'+1 speed ('+cs+' pt'+(cs>1?'s':'')+')':'Speed maxed'}</button>${UI.proMsg?`<span class="${UI.proOk?'good':'bad'}">${esc(UI.proMsg)}</span>`:''}</div>`}${proXFBlock(p)}</section>`;}
 function vPro(){const p=proP(),P=S.pro,T=S.teams[S.user],r=ratings(T);let h='<div class="wrap">';
   if(P.done){const d=P.done,c=careerLine(d);
-    h+=`<section class="card hero"><p class="eyebrow">Career over</p><h2>${esc(d.n)} retires</h2><p>${esc(c)}.</p>${(d.aw||[]).length?`<p><b>Awards:</b> ${d.aw.map(esc).join(' · ')}</p>`:'<p class="muted">No major awards.</p>'}<p class="${d.hof?'good':'muted'}">${d.hof?'Inducted into the Hall of Fame.':'Not inducted into the Hall of Fame.'}</p><div class="row"><button class="btn" data-a="pnNew">${UI.confirmNew?'Tap again to start over':'Start a new pro'}</button>${hasSave(KEY)?'<button class="btn ghost" data-a="toFr">Go to your franchise</button>':''}</div></section>`;
-    h+=`<section class="card"><h3>Career</h3>${careerTable(d)||'<p class="muted">No seasons recorded.</p>'}</section>`+historyCards();$('#view').innerHTML=h+'</div>';return;}
+    h+=`<section class="card hero"><p class="eyebrow">Career over</p><h2>${esc(d.n)} retires</h2><p>${esc(c)}.</p>${(d.aw||[]).length?`<p><b>Awards:</b> ${awSum(d.aw)}</p>`:'<p class="muted">No major awards.</p>'}<p class="${d.hof?'good':'muted'}">${d.hof?'Inducted into the Hall of Fame.':'Not inducted into the Hall of Fame.'}</p><div class="row"><button class="btn" data-a="pnNew">${UI.confirmNew?'Tap again to start over':'Start a new pro'}</button>${hasSave(KEY)?'<button class="btn ghost" data-a="toFr">Go to your franchise</button>':''}</div></section>`;
+    h+=`<section class="card"><h3>Career</h3>${careerTable(d)||'<p class="muted">No seasons recorded.</p>'}</section>`+(S.road&&S.road.car.length?`<section class="card"><h3>Before the pros</h3>${roadHist()}</section>`:'')+historyCards();$('#view').innerHTML=h+'</div>';return;}
   if(S.phase==='offseason'){const ch=S.teams[S.champ],others=S.teams.filter(t=>t.id!==S.user).sort((a,b)=>a.name.localeCompare(b.name));
     h+=`<section class="card hero"><p class="eyebrow">${S.season} season complete</p><h2>${ch.id===S.user?'You won the Gridiron Bowl!':esc(ch.name)+' won the Gridiron Bowl'}</h2><p>Your season: ${esc(statLine(p,T))}.</p><p class="muted">Next season you'll be ${p.age+1}. Young players get better every offseason; after about 30, they start to slow down. The league drafts and fills rosters for you.</p>
     <div class="row"><button class="btn" data-a="proAdv">Start the ${S.season+1} season</button>${p.age>=30?`<button class="btn ghost" data-a="proRet">${UI.confirmRet?'Tap again to retire':'Retire'}</button>`:''}</div>
-    <div class="row sp"><label for="proTeam" class="muted">Request a trade to</label><select id="proTeam">${others.map(t=>`<option value="${t.id}">${t.name}</option>`).join('')}</select><button class="btn ghost sm" data-a="proTr">Request trade</button></div></section>`;}
+    </section>`;}
   else{const m=userMatch(),lab=S.phase==='regular'?'Week '+(S.week+1)+' of '+S.schedule.length:roundName();
     if(m&&UI.setup)h+=setupCard(lab).replace(settingsRow(),proSettingsRow());
     else if(m){const home=m.h===S.user,opp=S.teams[home?m.a:m.h];
@@ -356,15 +363,16 @@ function vPro(){const p=proP(),P=S.pro,T=S.teams[S.user],r=ratings(T);let h='<di
       <div class="row"><button class="btn" data-a="play">Play game</button><button class="btn ghost" data-a="sim">Sim game</button></div><p class="muted">A simmed game earns ${35} XP, plus 15 for a win. Playing earns XP for everything you do.</p></section>`;}
     else if(S.phase==='regular')h+=`<section class="card hero"><p class="eyebrow">${lab}</p><h2>Bye week</h2><p class="muted">No game this week. Rest up.</p><div class="row"><button class="btn" data-a="sim">Continue</button></div></section>`;
     else{const alive=S.po&&(S.po.alive.A.includes(S.user)||S.po.alive.N.includes(S.user));h+=`<section class="card hero"><p class="eyebrow">${lab}</p><h2>${alive?'First-round bye':'Your season is over'}</h2><p class="muted">${alive?'Your team earned a week off.':'Your team missed out. Watch the rest of the playoffs.'}</p><div class="row"><button class="btn" data-a="sim">${alive?'Continue':'Sim this round'}</button></div></section>`;}}
-  if(!UI.setup)h+=proPlayerCard(p);
+  if(!UI.setup)h+=proPlayerCard(p)+proTradeCard(p);
   const L=P.last;if(L&&!UI.setup)h+=`<section class="card"><h3>Last game</h3><p><b>${esc(L.res)}</b>${L.sim?' · simmed':''}</p>${L.line?`<p>${esc(L.line)}</p>`:''}${(L.goals||[]).length?'<ul class="news goals">'+L.goals.map(g=>`<li class="${g.ok?'good':'muted'}">${g.ok?'✓':'✗'} ${esc(g.t)}</li>`).join('')+'</ul>':''}<p class="muted">+${L.xp} XP${L.sp?' · '+L.sp+' new skill point'+(L.sp>1?'s':''):''}</p></section>`;
-  if(!UI.setup){h+=`<section class="card"><h3>${S.season} season</h3><p>${esc(proSeasonLine(p,T))}${S.week&&S.phase==='regular'&&S.week>(S.gpU||0)?' <span class="muted">(simmed games are estimated)</span>':''}</p>${careerTable(p)}${(p.aw||[]).length?`<p><b>Awards:</b> ${p.aw.slice(-8).map(esc).join(' · ')}</p>`:''}</section>`;
+  if(!UI.setup){h+=`<section class="card"><h3>${S.season} season</h3><p>${esc(proSeasonLine(p,T))}${S.week&&S.phase==='regular'&&S.week>(S.gpU||0)?' <span class="muted">(simmed games are estimated)</span>':''}</p>${careerTable(p)}${(p.aw||[]).length?`<p><b>Awards:</b> ${awSum(p.aw)}</p>`:''}</section>`;
+    if(S.road&&S.road.car.length)h+=`<section class="card"><h3>Before the pros</h3>${roadHist()}${S.road.draft?`<p class="muted">${S.road.draft.pick?'Drafted: '+esc(S.road.draft.txt):'Undrafted free agent'}.</p>`:''}</section>`;
     if(S.news.length)h+='<section class="card"><h3>News</h3><ul class="news">'+S.news.slice(0,8).map(n=>`<li>${esc(n)}</li>`).join('')+'</ul></section>';
     h+=`<section class="card"><h3>Settings</h3>${proSettingsRow()}</section><section class="card"><h3>Broadcast sound</h3>${voiceRow()}</section>`;
     h+=`<section class="card"><h3>How Be a Pro works</h3><ul class="news"><li><b>You are one player.</b> A gold marker and YOU sit over him. Only he takes your controls.</li><li><b>Quarterback:</b> you call the plays and throw, just like franchise mode. After a handoff or a catch, the computer runs with it.</li><li><b>Running back, receiver or tight end:</b> the coach calls the play and tells you your job. Press Ready (Space) to snap. Routes run on their own; when the ball comes to you, it's yours: move, juke (Space), spin (E) and pitch (L).</li><li><b>Defense:</b> the coach picks the call; you play it. Move with WASD or the arrows, dive or swat with Space.</li><li><b>When your side is off the field</b>, the other half of the game is simulated so you only play your own snaps. Kicks are automatic.</li><li><b>XP:</b> every catch, yard, tackle and touchdown earns XP, each game goal met earns 50, and a win adds 25. Every ${PRO_XP} XP is a skill point to spend on overall or speed.</li><li><b>Seasons:</b> awards are based on how you play. Retire any time after 30, or play until 40, and see if you make the Hall of Fame.</li></ul>
     <div class="row">${hasSave(KEY)?'<button class="btn ghost sm" data-a="toFr">Go to your franchise</button>':''}<button class="btn ghost sm" data-a="pnNew">${UI.confirmNew?'Tap again to erase this career':'Start a new pro'}</button></div></section>`;}
   $('#view').innerHTML=h+'</div>';}
-function vProTeam(){const T=S.teams[S.user],r=ratings(T),me=S.pro.id;let h=`<div class="wrap"><section class="card"><div class="match">${teamBlock(T,r)}</div><p class="muted">Your coach runs the roster. Starters are marked.</p><div class="scroll"><table class="tbl"><thead><tr><th class="l">Pos</th><th>#</th><th class="l">Player</th><th>Age</th><th>Ovr</th><th>Spd</th></tr></thead><tbody>`;
+function vProTeam(){const T=onRoad()?S.road.team:S.teams[S.user],r=ratings(T),me=S.pro.id;let h=`<div class="wrap"><section class="card"><div class="match">${teamBlock(T,r)}</div><p class="muted">Your coach runs the roster. Starters are marked.</p><div class="scroll"><table class="tbl"><thead><tr><th class="l">Pos</th><th>#</th><th class="l">Player</th><th>Age</th><th>Ovr</th><th>Spd</th></tr></thead><tbody>`;
   for(const p of T.roster.slice().sort((a,b)=>posRank(a)-posRank(b))){const st=isStarter(T,p);h+=`<tr class="${p.id===me?'me':''}"><td class="l">${p.pos}</td><td>${p.num}</td><td class="l">${st?'<b>':''}${esc(p.n)}${st?'</b>':''}${xfTag(p)}${p.id===me?' <span class="chip">You</span>':''}${p.inj?' <span class="tag inj">Out '+p.inj+'</span>':''}</td><td>${p.age}</td><td>${p.ovr}</td><td>${p.spd}</td></tr>`;}
   $('#view').innerHTML=h+'</tbody></table></div></section></div>';}
 
@@ -376,3 +384,43 @@ function proPanel(g,kb){const ph=g.phase,uo=g.poss==='U',P=g.pro,pe=proEnt();if(
   if(c===pe)return null;
   if(g.ctl===pe&&!(c&&c.team==='U'))return coarse?`<div class="pad"><span class="muted">${g.ret?'Chase him down! ':''}Drag to move.</span><span class="row"><button class="btn" data-a="dive">Tackle</button></span></div>`:`<div class="row"><span class="muted">${g.ret?'Chase him down! ':''}Move: WASD or arrows. Dive tackle${uo?'':' or swat a pass'}: Space.</span></div>`;
   return `<div class="row"><span class="muted">${b&&b.fly&&b.target===pe?'Here it comes. Look for it!':uo?'Keep working. You take over if the ball comes to you.':'Your teammate has it.'}</span></div>`;}
+
+function awSum(a){const m=new Map();for(const x of a)m.set(x,(m.get(x)||0)+1);return [...m].map(([k,n])=>(n>1?n+'× ':'')+esc(k)).join(' · ');}
+function proXFBlock(p){const P=S.pro;P.xfs=P.xfs||[];if(p.xf&&!P.xfs.includes(p.xf))P.xfs.push(p.xf);const n=P.xfs.length,need=PRO_XF_OVR[n];
+  return `<div class="xfrow"><p class="eyebrow">X-Factors</p><p class="muted">Unlock up to three for ${PRO_XF_COST} skill points each, at ${PRO_XF_OVR.join(', ')} overall. Equip one at a time. ${XFON[p.pos]}</p><div class="xfgrid">${XFS[p.pos].map(([k,nm,d])=>{const own=P.xfs.includes(k),on=p.xf===k;
+    return `<div class="xfc${on?' on':''}"><b>${on?'<span class="xf">X</span> ':''}${nm}</b><small>${d}</small>${P.done?'':on?'<span class="chip">Equipped</span>':own?`<button class="btn ghost sm" data-a="proXF" data-k="${k}">Equip</button>`:n>=3?'':`<button class="btn ghost sm" data-a="proXF" data-k="${k}"${p.ovr>=need&&P.sp>=PRO_XF_COST?'':' disabled'}>${p.ovr>=need?'Unlock · '+PRO_XF_COST+' pts':'Unlocks at '+need}</button>`}</div>`;}).join('')}</div></div>`;}
+function proTradeCard(p){if(S.pro.done||onRoad())return '';const open=proTradeOpen(),su=open?proSuitors():[];
+  return `<section class="card"><h3>Request a trade</h3>${!open?`<p class="muted">The trade deadline has passed. Requests open again in the offseason.</p>`:su.length?`<p class="muted">These teams would start you at ${p.pos}. Trades go through right away.</p><div class="row"><select id="proTeam" aria-label="Team to be traded to">${su.map(t=>`<option value="${t.id}">${t.name} (${t.w}-${t.l}, ${ratings(t).ovr} OVR)</option>`).join('')}</select><button class="btn ghost sm" data-a="proTr">Request trade</button></div>`:`<p class="muted">No team would start you over their ${p.pos} right now. Raise your overall and ask again.</p>`}</section>`;}
+function roadHist(){const R=S.road,p=proP();if(!R||!R.car||!R.car.length)return '';return `<div class="scroll"><table class="tbl sm"><thead><tr><th class="l">Season</th><th>Record</th><th>GP</th><th class="l">Stats</th><th class="l">Honors</th></tr></thead><tbody>${R.car.map(c=>`<tr><td class="l">${esc(c.lab)}</td><td>${c.w}-${c.l}</td><td>${c.gp}</td><td class="l">${esc(proLine(c.st,p.pos))}</td><td class="l">${c.aw.map(esc).join(', ')||'—'}</td></tr>`).join('')}</tbody></table></div>`;}
+function renderRoad(){const R=S.road,p=proP(),T=R.team;S.pro.xfs=S.pro.xfs||[];
+  $('#top').innerHTML=`<div class="who">${sw(T,'lg')}<div><h1>${esc(p.n)}</h1><div class="meta">#${p.num} · ${p.pos} · ${esc(roadLabel())}</div></div></div><div class="stat">${p.ovr}<small>Overall</small></div>`;
+  if(!['home','team'].includes(UI.tab))UI.tab='home';$('#tabs').hidden=false;
+  $('#tabs').innerHTML=[['home','Career'],['team','Team']].map(t=>`<button data-a="tab" data-t="${t[0]}" class="${UI.tab===t[0]?'on':''}">${t[1]}</button>`).join('');
+  (UI.tab==='team'?vProTeam:vRoad)();}
+const stars=n=>'<span class="stars" aria-label="'+n+' stars">'+'★'.repeat(n)+'<span>'+'★'.repeat(5-n)+'</span></span>';
+function vRoad(){const R=S.road,p=proP(),T=R.team,P=S.pro,m=roadMatch(),hs=R.stage==='hs';let h='<div class="wrap">';
+  if(m){h+=`<section class="card hero"><p class="eyebrow">${esc(roadLabel())} · ${esc(m.lab)} · ${m.home?'Home':'Away'}</p><div class="match">${teamBlock(T,ratings(T))}<span class="vs">${m.home?'vs':'at'}</span>${teamBlock(m.opp,ratings(m.opp))}</div>
+    <p class="eyebrow">Game goals · 50 XP each</p><ul class="news goals">${(P.goals||[]).map(g=>`<li>${esc(g.t)}</li>`).join('')}</ul>
+    <div class="row"><button class="btn" data-a="play">Play game</button><button class="btn ghost" data-a="sim">Sim game</button><button class="btn ghost sm" data-a="roadAll">Sim the rest of the season</button></div>
+    <p class="muted">${hs?'College scouts are in the stands. ':'NFL scouts are watching. '}Playing earns XP for everything you do; a simmed game earns 40, plus 10 for a win.</p></section>`;}
+  else if(R.stage==='hs'||R.stage==='col'){const s=R.sea,nx=R.stage==='col'?R.yr+1:0;
+    h+=`<section class="card hero"><p class="eyebrow">${esc(roadLabel())} · season over</p><h2>${T.w}-${T.l}${s.champ?' · '+esc(s.champ):''}</h2><p>${esc(proLine(s.st,p.pos))} in ${s.gp} games.</p>${s.aw.length?`<p><b>Honors:</b> ${s.aw.map(esc).join(' · ')}</p>`:'<p class="muted">No honors this year.</p>'}
+    <div class="row">${hs?'<button class="btn" data-a="roadNext">See your scholarship offers</button>':R.yr<2?`<button class="btn" data-a="roadNext">Start your ${CLASS_YR[nx].toLowerCase()} year</button>`:`<button class="btn" data-a="roadDeclare">Declare for the NFL Draft</button>${R.yr===2?'<button class="btn ghost" data-a="roadNext">Come back for your senior year</button>':''}`}</div>
+    ${!hs&&R.yr>=2?`<p class="muted">Draft outlook: ${roadProjection().txt}.</p>`:''}</section>`;}
+  else if(R.stage==='offers'){h+=`<section class="card hero"><p class="eyebrow">Recruiting</p><h2>${stars(R.stars)} ${R.stars}-star prospect</h2><p class="muted">Pick where you play college ball. Bigger programs play tougher schedules, win more, and get more national attention at draft time.</p></section>
+    <div class="offers">${R.offers.map(i=>{const c=COLLEGES[i];return `<section class="card offer"><div class="tb"><span class="sw lg" style="--a:${c[2]};--b:${c[3]}"></span><div><b>${esc(c[0])}</b><span>Program ${stars(Math.max(1,Math.round(c[4]/2)))}</span></div></div><button class="btn sm" data-a="roadCommit" data-k="${i}">Commit</button></section>`;}).join('')}</div>`;}
+  else if(R.stage==='draft'){const pr=roadProjection(),D=R.draft;
+    h+=D?`<section class="card hero"><p class="eyebrow">${S.season} NFL Draft · ${esc(D.txt)}</p><h2>${D.pick?'With pick '+D.pick+', '+esc(S.teams[D.tid].name)+' select '+esc(p.n):esc(p.n)+' signs with '+esc(S.teams[D.tid].name)}</h2><div class="match">${teamBlock(S.teams[D.tid],ratings(S.teams[D.tid]))}</div><div class="row"><button class="btn" data-a="roadNFL">Start your NFL career</button></div></section>`
+      :`<section class="card hero"><p class="eyebrow">${S.season} NFL Draft</p><h2>Draft day</h2><p>Scouts project you as ${pr.txt}.</p><div class="row"><button class="btn" data-a="roadDraft">Go to the draft</button></div></section>`;}
+  h+=proPlayerCard(p);
+  const L=P.last;if(L)h+=`<section class="card"><h3>Last game</h3><p><b>${esc(L.res)}</b>${L.sim?' · simmed':''}</p>${L.line?`<p>${esc(L.line)}</p>`:''}${(L.goals||[]).length?'<ul class="news goals">'+L.goals.map(g=>`<li class="${g.ok?'good':'muted'}">${g.ok?'✓':'✗'} ${esc(g.t)}</li>`).join('')+'</ul>':''}<p class="muted">+${L.xp} XP${L.sp?' · '+L.sp+' new skill point'+(L.sp>1?'s':''):''}</p></section>`;
+  if(m&&R.sea)h+=`<section class="card"><h3>This season</h3><p>${T.w}-${T.l} · ${esc(R.sea.gp?proLine(R.sea.st,p.pos):'No games yet')}</p></section>`;
+  if(R.car.length)h+=`<section class="card"><h3>Before the pros</h3>${roadHist()}</section>`;
+  if(S.news.length)h+='<section class="card"><h3>News</h3><ul class="news">'+S.news.slice(0,8).map(n=>`<li>${esc(n)}</li>`).join('')+'</ul></section>';
+  h+=`<section class="card"><h3>Settings</h3>${proSettingsRow()}</section><section class="card"><h3>Road to the Pros</h3><ul class="news"><li><b>High school:</b> one senior season of 8 games, plus the state playoffs if you win 5. Your play and honors decide your star rating and which colleges offer.</li><li><b>College:</b> 10 games a year. Win 6 for a bowl game; win 9 for the playoff and a shot at the national title. Big seasons earn All-Conference, All-American and the Heisman.</li><li><b>The draft:</b> declare after your junior or senior year. Your overall and college honors decide where you go.</li><li>XP and skill points work the same as in the NFL, and you can unlock X-Factors once you reach ${PRO_XF_OVR[0]} overall.</li></ul>
+    <div class="row">${hasSave(KEY)?'<button class="btn ghost sm" data-a="toFr">Go to your franchise</button>':''}<button class="btn ghost sm" data-a="pnNew">${UI.confirmNew?'Tap again to erase this career':'Start a new pro'}</button></div></section>`;
+  $('#view').innerHTML=h+'</div>';}
+function roadPlay(){const R=S.road,m=roadMatch(),p=proP();if(!m)return;const T=R.team,uU=m.home?'H':'A',uO=fixClash(m.opp,m.home?'A':'H',{T,key:uU});
+  startGame(m.opp,m.home,uU,uO,{U:T,road:true,pro:{id:p.id,pos:p.pos,n:p.n}});}
+function roadSim(){const m=roadMatch(),R=S.road,P=S.pro;if(!m)return;const T=R.team,sc=m.home?simGame(T,m.opp):simGame(m.opp,T),us=m.home?sc[0]:sc[1],th=m.home?sc[1]:sc[0],xp=40+(us>th?10:0);
+  P.games++;const sp=proGain(xp);P.last={sim:true,xp,sp,res:(us>th?'Won ':'Lost ')+us+'-'+th};proGoals();roadResult(us,th,null);}

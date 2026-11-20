@@ -41,10 +41,22 @@ const UNI_NAMES={H:'Home',A:'Away',X:'Alternate',R:'Rivalry'};
 // Potential tiers: how fast a young player improves each offseason.
 const DEV={F:'Franchise',E:'Elite',S:'Star',N:'Normal'},DEV_GROW={N:1,S:2,E:3,F:4};
 // X-Factor abilities. Linemen and kickers are always on; everyone else has to get "in the zone" during a game.
-const XF={QB:['Gunslinger','Bullet passes that stay accurate under pressure. Turns on after 2 completions.'],RB:['Wrecking Ball','Breaks the first tackle on every carry and runs faster. Turns on after 2 runs of 4+ yards.'],
-  WR:['Sure Hands','Catches anything he can reach and cannot be intercepted. Turns on after 2 catches.'],TE:['Mismatch','Catches anything he can reach and breaks the first tackle. Turns on after 2 catches.'],OL:['Anchor','Cannot be beaten for the first 3.5 seconds of a pass. Always on.'],
-  DL:['Unstoppable','Beats any block within a second. Turns on after a sack or tackle for loss.'],LB:['Enforcer','His tackles are never broken. Turns on after 2 tackles.'],
-  CB:['Lockdown','Blankets his receiver. Turns on after a pass breakup, an interception or 2 tackles.'],S:['Ball Hawk','Breaks on every throw and intercepts far more. Turns on after a breakup, an interception or 2 tackles.'],K:['Clutch','A much wider field goal target. Always on.']};
+// Three X-Factors per position. A player holds one; the key is stored on the player (p.xf).
+const XFS={QB:[['gun','Gunslinger','Bullet passes that stay accurate under pressure.'],['dime','Dime Dropper','Deep balls land right on target, and his receivers win the contested catch.'],['escape','Escape Artist','Slips the first sack attempt and is faster on the move.']],
+  RB:[['wreck','Wrecking Ball','Breaks the first tackle on every carry and runs faster.'],['ankle','Ankle Breaker','His jukes and spins almost always work, and they recharge twice as fast.'],['break','Breakaway','Hits another gear once he gets past the line. Nobody catches him from behind.']],
+  WR:[['hands','Sure Hands','Catches anything he can reach and cannot be intercepted.'],['deep','Deep Threat','Faster on his routes and gets extra separation from his defender.'],['yac','YAC Machine','Breaks the first tackle after the catch and bursts upfield.']],
+  TE:[['mismatch','Mismatch','Catches anything he can reach and breaks the first tackle.'],['wall','Road Block','His blocks hold far longer.'],['seam','Seam Stretcher','Faster on his routes and wins almost every contested catch.']],
+  OL:[['anchor','Anchor','Cannot be beaten for the first 3.5 seconds of a pass.'],['grader','Road Grader','On running plays his blocks hold twice as long.'],['mauler','Mauler','Every block he makes lasts longer.']],
+  DL:[['unstop','Unstoppable','Beats any block within a second.'],['speed','Speed Rusher','Explodes off the snap and closes faster than anyone.'],['strip','Strip Sack','His sacks and tackles knock the ball loose far more often.']],
+  LB:[['enforcer','Enforcer','His tackles are never broken.'],['lurker','Lurker','Jumps throws in front of him and intercepts far more.'],['blitz','Blitz Master','Faster to the ball and sheds blocks quickly.']],
+  CB:[['lock','Lockdown','Blankets his receiver.'],['pick','Pick Artist','Turns contested throws into interceptions.'],['press','Press Man','Jams his receiver at the line and is faster in coverage.']],
+  S:[['hawk','Ball Hawk','Breaks on every throw and intercepts far more.'],['hammer','Hammer','Big hits break up passes and jar the ball loose.'],['closer','Closer','Faster in pursuit, and his tackles are never broken.']],
+  K:[['clutch','Clutch','A much wider field goal target.'],['leg','Big Leg','Long field goals get much easier.'],['ice','Ice Veins','A huge target in the fourth quarter and overtime.']]};
+const XFON={QB:'Turns on after 2 completions.',RB:'Turns on after 2 runs of 4+ yards.',WR:'Turns on after 2 catches.',TE:'Turns on after 2 catches.',OL:'Always on.',DL:'Turns on after a sack or tackle for loss.',LB:'Turns on after 2 tackles.',CB:'Turns on after a pass breakup, an interception or 2 tackles.',S:'Turns on after a breakup, an interception or 2 tackles.',K:'Always on.'};
+const xfKey=p=>!p||!p.xf||!XFS[p.pos]?null:typeof p.xf==='string'?p.xf:XFS[p.pos][0][0];
+const xfInfo=p=>{const k=xfKey(p);return k?XFS[p.pos].find(x=>x[0]===k)||XFS[p.pos][0]:null;};
+const xfName=p=>{const x=xfInfo(p);return x?x[1]:'';},xfDesc=p=>{const x=xfInfo(p);return x?x[2]+' '+XFON[p.pos]:'';};
+const xfRand=pos=>pick(XFS[pos])[0];
 
 // Each home stadium: roof (O open, C open with canopies, D dome, T translucent roof), seat color, landmark, capacity in thousands, and what makes it itself.
 const STAD={
@@ -81,7 +93,7 @@ ARI:['D','#a0263f','none',63,'A silver dome in the desert, with a grass field th
 SF:['O','#b3181c','none',68,'Red seats in the sun and a wall of suites down one side.'],
 SEA:['C','#1d3a63','sky',69,'Twin roof arches trap the noise, and the open north end looks out at downtown.']};
 const ROOF={O:'open air',C:'open air under a canopy',D:'indoors',T:'under a translucent roof'};
-const stadName=T=>T.name.replace(/ [A-Z]$/,'')+' Stadium';
+const stadName=T=>T.stadN||T.name.replace(/ [A-Z]$/,'')+' Stadium',uniOf=T=>T.uni||UNI[T.abbr];
 
 let S=null,NID=1;
 const dk=()=>S?[-1,0,0.7,1.4][S.diff]:0; // difficulty lean: Rookie, Pro, All-Pro, Legend
@@ -99,14 +111,17 @@ function genFA(n){const out=[];for(let i=0;i<n;i++){const pos=pick(FA_BAG);out.p
 function newLeague(){NID=1;
   const teams=TEAM_DEFS.map((d,i)=>{const taken=new Set(),roster=[];
     for(const r of REAL[d[0]]){let num=r[3];if(taken.has(num))num=numFor(r[1],taken);else taken.add(num);
-      const p={id:NID++,n:r[0],pos:r[1],age:r[5],ovr:r[2],dev:devFor(r[2],r[5],r[4]),pot:r[2],spd:spdFor(r[1],r[2]),num,xf:r[4]===1,rk:r[5]<=22?2026:0};p.pot=potFor(p);p.leg=Math.round(Math.max(0,r[5]-22)*Math.max(0,r[2]-82)/6*10)/10;roster.push(p);}
+      const p={id:NID++,n:r[0],pos:r[1],age:r[5],ovr:r[2],dev:devFor(r[2],r[5],r[4]),pot:r[2],spd:spdFor(r[1],r[2]),num,xf:r[4]===1?XFS[r[1]][NID%3][0]:false,rk:r[5]<=22?2026:0};p.pot=potFor(p);p.leg=Math.round(Math.max(0,r[5]-22)*Math.max(0,r[2]-82)/6*10)/10;roster.push(p);}
     for(const pos of POS_ORDER)while(roster.filter(p=>p.pos===pos).length<ROSTER_N[pos])roster.push(mkPlayer(pos,rnd(60,67),rint(22,25),taken));
     return {id:i,abbr:d[0],name:d[1],c1:d[2],c2:d[3],conf:d[4],div:d[5],roster,w:0,l:0,pf:0,pa:0};});
-  S={v:5,qlen:4,rec:{s:{},c:{}},hof:[],hist:[],drill:null,gpU:0,talk:2,pst:{},awards:null,season:2026,week:0,user:-1,teams,schedule:[],phase:'regular',po:null,picks:[],pid:1,news:[],offer:null,nid:NID,champ:null,last:'',diff:1,playDef:true,speed:1,koRet:true,tp:12,draft:null,myPicks:[],fa:[],rank:{}};
+  S={v:6,qlen:4,rec:{s:{},c:{}},hof:[],hist:[],drill:null,gpU:0,talk:2,pst:{},awards:null,season:2026,week:0,user:-1,teams,schedule:[],phase:'regular',po:null,picks:[],pid:1,news:[],offer:null,nid:NID,champ:null,last:'',diff:1,playDef:true,speed:1,koRet:true,tp:12,draft:null,myPicks:[],fa:[],rank:{}};
   S.picks=[...mkPicks(2027),...mkPicks(2028)];S.fa=genFA(60);computeRanks(false);S.schedule=makeSchedule(S.season);return S;}
 // Brings a save from the previous version up to date.
+// v6: one of three X-Factors per position instead of a yes/no flag.
+function fixXF(o,d){if(!o||typeof o!=='object'||d>6)return;if(Array.isArray(o)){for(const x of o)fixXF(x,d+1);return;}if(o.xf===true&&o.pos&&XFS[o.pos])o.xf=XFS[o.pos][(o.id||0)%3][0];for(const k in o)if(o[k]&&typeof o[k]==='object')fixXF(o[k],d+1);}
 function migrate(){if(S.v<4)migrate4();if(S.v<5){S.qlen=S.qlen||4;S.rec=S.rec||{s:{},c:{}};S.hof=S.hof||[];S.hist=S.hist||[];S.gpU=S.gpU||0;
-  for(const T of S.teams)for(const p of T.roster)if(p.leg==null)p.leg=Math.round(Math.max(0,p.age-(S.season-2026)-22)*Math.max(0,p.ovr-82)/6*10)/10;S.v=5;}}
+  for(const T of S.teams)for(const p of T.roster)if(p.leg==null)p.leg=Math.round(Math.max(0,p.age-(S.season-2026)-22)*Math.max(0,p.ovr-82)/6*10)/10;S.v=5;}
+  if(S.v<6){fixXF(S,0);S.v=6;}}
 function migrate4(){if(S.talk==null)S.talk=2;if(!S.pst)S.pst={};if(S.season===2026)for(const T of S.teams)for(const q of T.roster)if(q.rk==null&&q.age<=22)q.rk=2026;if(S.v>=3){S.v=4;return;}
   for(const T of S.teams)for(const p of T.roster)if(!p.dev){p.dev=devFor(p.ovr,p.age,p.xf?1:0);if(p.dev==='N'&&p.pot-p.ovr>=8)p.dev='S';}
   if(S.draft)for(const p of S.draft.pool)if(!p.dev)p.dev=p.pot-p.ovr>=11?'E':p.pot-p.ovr>=6?'S':'N';
@@ -122,7 +137,7 @@ function ratings(T){const avg=pos=>{const a=starters(T,pos);return a.reduce((x,p
   const off=(avg('QB')*3+avg('RB')+avg('WR')*2.5+avg('TE')*0.7+avg('OL')*2.8)/10;
   const def=(avg('DL')*3+avg('LB')*2.2+avg('CB')*2.6+avg('S')*2.2)/10;
   return {off:Math.round(off),def:Math.round(def),ovr:Math.round((off+def)/2)};}
-function checkXF(T,p){if(!p.xf&&p.ovr>=XF_OVR){p.xf=true;if(T.id===S.user)S.news.unshift(p.n+' ('+p.pos+') earned an X-Factor: '+XF[p.pos][0]+'.');}}
+function checkXF(T,p){if(!p.xf&&!p.pro&&p.ovr>=XF_OVR){p.xf=xfRand(p.pos);if(T.id===S.user)S.news.unshift(p.n+' ('+p.pos+') earned an X-Factor: '+xfName(p)+'.');}}
 
 // ===== schedule: 17 games in 18 weeks. Each division rival twice, one bye per team. =====
 const cmpTeams=(a,b)=>(b.w/((b.w+b.l)||1))-(a.w/((a.w+a.l)||1))||(b.pf-b.pa)-(a.pf-a.pa)||a.id-b.id;
@@ -218,7 +233,7 @@ function computeAwards(){const yr=S.season,all=[],rooks=[];
   S.awards={yr,list,pro};}
 // ===== weather for a home game: roof, season week and city decide it =====
 const COLD=['BUF','NE','NYJ','NYG','CLE','PIT','CIN','BAL','CHI','GB','DEN','KC','PHI','WAS'],WINDY=['BUF','CHI','CLE','NE','NYJ','NYG','GB'];
-function gameWeather(H){const st=STAD[H.abbr]||['O'],late=S.phase==='playoffs'||S.week>=11,night=Math.random()<(S.phase==='playoffs'?0.45:0.3);
+function gameWeather(H){const st=H.stad||STAD[H.abbr]||['O'],late=S.phase==='playoffs'||S.week>=11,night=Math.random()<(S.phase==='playoffs'?0.45:0.3);
   if(st[0]==='D'||st[0]==='T')return {sky:'clear',wind:0,wdir:1,night,indoor:true};
   let sky='clear';const r=Math.random();
   if(COLD.includes(H.abbr)&&r<(late?0.3:S.week>=8?0.08:0))sky='snow';
@@ -400,7 +415,7 @@ const PRO_GOALS={QB:[['py',200,'Throw for {n} yards'],['ptd',2,'Throw {n} touchd
   TE:[['rec',3,'Catch {n} passes'],['recy',35,'Gain {n} receiving yards'],['td',1,'Score a touchdown']],
   DL:[['sk',1,'Get a sack'],['tk',3,'Make {n} tackles']],LB:[['tk',6,'Make {n} tackles'],['sk',1,'Get a sack']],
   CB:[['tk',2,'Make {n} tackles'],['pd',1,'Break up a pass'],['int',1,'Intercept a pass']],S:[['tk',4,'Make {n} tackles'],['pd',1,'Break up a pass'],['int',1,'Intercept a pass']]};
-function proP(){if(!isPro())return null;if(S.pro.done)return S.pro.done;for(const T of S.teams){const p=T.roster.find(x=>x.id===S.pro.id);if(p)return p;}return null;}
+function proP(){if(!isPro())return null;if(S.pro.done)return S.pro.done;if(onRoad())return S.road.team.roster.find(x=>x.id===S.pro.id)||null;for(const T of S.teams){const p=T.roster.find(x=>x.id===S.pro.id);if(p)return p;}return null;}
 function newPro(name,pos,num,tid){newLeague();S.mode='pro';const drafted=!(tid>=0&&tid<32);
   if(drafted)tid=pick(S.teams.slice().sort((a,b)=>ratings(a).ovr-ratings(b).ovr).slice(0,8)).id;
   const T=S.teams[tid],taken=new Set(T.roster.map(p=>p.num)),p=mkPlayer(pos,pos==='QB'?70:71,21,null,'S');
@@ -409,7 +424,7 @@ function newPro(name,pos,num,tid){newLeague();S.mode='pro';const drafted=!(tid>=
   p.spd=clamp(p.spd+3,40,99);p.pot=Math.max(p.pot,84);p.pro=true;p.rk=S.season;T.roster.push(p);trimRoster(T,ROSTER_MAX);
   S.user=tid;S.playDef=proSide(pos)==='D';S.koRet=false;S.pro={id:p.id,xp:0,sp:1,games:0,start:S.season,goals:null,last:null,done:null,sg:0,sgp:0};proGoals();
   S.news=[(drafted?T.name+' took '+p.n+' in the first round':T.name+' signed rookie '+p.n)+' ('+pos+', #'+p.num+'). Welcome to the league.'];save();return p;}
-function proGoals(){const p=proP();if(!p)return;const f=clamp((S.qlen||4)/4,0.5,2),pool=shuffle(PRO_GOALS[p.pos].slice()).slice(0,2);
+function proGoals(){const p=proP();if(!p)return;const f=clamp((S.qlen||4)/4,0.5,2)*(onRoad()?(S.road.stage==='hs'?1.3:1.1):1),pool=shuffle(PRO_GOALS[p.pos].slice()).slice(0,2);
   S.pro.goals=pool.map(([k,n,t])=>{const m=n<=1?(n===1&&f>=1.75?2:n):Math.max(1,Math.round(n*f));return {k,n:m,t:t.replace('{n}',m.toLocaleString('en-US'))};});}
 function goalMet(g,s){const v=s[g.k.replace(/0$/,'')]||0;return /0$/.test(g.k)?v<=0:v>=g.n;}
 function proLine(s,pos){s=s||{};const f=x=>Math.round(x||0);
@@ -423,7 +438,7 @@ function proXP(s,pos,win,met){s=s||{};const g=k=>s[k]||0;let x;
   else if(pos==='WR'||pos==='TE')x=g('rec')*9+g('recy')/2.5+g('td')*20+g('ry')/4;
   else x=g('tk')*10+g('sk')*25+g('pd')*15+g('int')*35+g('td')*25+g('fr')*15;
   return Math.max(10,Math.round(x))+(win?25:0)+met*50;}
-const proCost=p=>p.ovr>=99?0:p.ovr<75?1:p.ovr<85?2:p.ovr<92?3:4,proSpdCost=p=>p.spd>=99?0:p.spd<85?1:p.spd<92?2:3;
+const proCost=p=>p.ovr>=99?0:p.ovr<60?1:p.ovr<85?2:p.ovr<92?3:4,proSpdCost=p=>p.spd>=99?0:p.spd<85?1:p.spd<92?2:3;
 function proGain(xp){const P=S.pro,b=P.sp;P.xp+=xp;while(P.xp>=PRO_XP){P.xp-=PRO_XP;P.sp++;}return P.sp-b;}
 function proApply(r){const P=S.pro,p=proP();if(!p)return;P.games++;P.sg+=r.met;P.sgp+=r.goals.length;const sp=proGain(r.xp);
   P.last={sim:false,line:proLine(r.s,p.pos),xp:r.xp,met:r.met,goals:r.goals.map(g=>({t:g.t,ok:g.ok})),sp,res:r.res};
@@ -445,8 +460,111 @@ function proRetire(forced){const p=proP(),T=S.teams[S.user];if(!p||S.pro.done)re
   const before=(S.hof||[]).length;retireCheck(T,p);const hof=(S.hof||[]).length>before;if(hof)S.hof[0].user=true;
   S.pro.done=Object.assign({},p,{team:T.name,hof,retY:S.season});S.news.unshift(p.n+(forced?' retires at 40':' retires')+' after '+(p.hist||[]).length+' seasons.'+(hof?' He goes into the Hall of Fame.':''));
   if(S.phase==='offseason'){S.pro.sg=S.pro.sgp=0;}save();}
+const proTradeOpen=()=>S.phase==='offseason'||S.phase==='regular'&&S.week<TRADE_DEADLINE;
+// Teams that would start you at your position.
+function proSuitors(){const p=proP();if(!p||onRoad())return [];return S.teams.filter(T=>T.id!==S.user).map(T=>({T,s:starters(T,p.pos)[0]})).filter(x=>!x.s||x.s.ovr<=p.ovr+1).sort((a,b)=>ratings(b.T).ovr-ratings(a.T).ovr).slice(0,8).map(x=>x.T);}
 function proTrade(tid){const p=proP(),A=S.teams[S.user],B=S.teams[tid];if(!p||!B||B===A||S.pro.done)return 'Pick a different team.';
-  if(S.phase!=='offseason')return 'Trade requests are only granted in the offseason.';
+  if(!proTradeOpen())return 'Trade requests are only granted in the offseason or before the week '+(TRADE_DEADLINE+1)+' trade deadline.';
+  if(!proSuitors().includes(B))return B.name+' are not interested right now.';
   A.roster.splice(A.roster.indexOf(p),1);const taken=new Set(B.roster.map(x=>x.num));if(taken.has(p.num))p.num=numFor(p.pos,taken);B.roster.push(p);trimRoster(B,ROSTER_MAX);
   const t=A.roster.filter(x=>x.pos===p.pos).length;if(t<ROSTER_N[p.pos]){const r=mkPlayer(p.pos,rnd(60,66),rint(22,25),new Set(A.roster.map(x=>x.num)));A.roster.push(r);}
   S.user=tid;S.news.unshift('Trade: '+A.name+' send '+p.n+' to '+B.name+'.');save();return '';}
+
+// ----- X-Factors for your pro: unlock with skill points, equip one at a time -----
+const PRO_XF_OVR=[78,85,91],PRO_XF_COST=4;
+function proXF(k){const p=proP(),P=S.pro;if(!p||P.done)return 'Your career is over.';P.xfs=P.xfs||[];if(!XFS[p.pos].some(x=>x[0]===k))return '';
+  if(P.xfs.includes(k)){p.xf=k;save();return '';}const n=P.xfs.length,need=PRO_XF_OVR[n];
+  if(p.ovr<need)return 'Your '+['first','second','third'][n]+' X-Factor unlocks at '+need+' overall.';if(P.sp<PRO_XF_COST)return 'You need '+PRO_XF_COST+' skill points to unlock it.';
+  P.sp-=PRO_XF_COST;P.xfs.push(k);p.xf=k;S.news.unshift('You unlocked the '+xfName(p)+' X-Factor.');save();return '';}
+
+// ===== Road to the Pros: high school, college, then the draft =====
+const onRoad=()=>!!(S&&S.road&&S.road.stage!=='done');
+const COLLEGES=[['Alabama','BAMA','#9E1B32','#F2F2F2',10],['Georgia','UGA','#BA0C2F','#111111',10],['Ohio State','OSU','#BB0000','#9AA1A6',10],['Michigan','MICH','#00274C','#FFCB05',9],['Texas','TEX','#BF5700','#F2F2F2',9],['Oregon','ORE','#154733','#FEE123',9],
+  ['LSU','LSU','#461D7C','#FDD023',8],['Clemson','CLEM','#F56600','#522D80',8],['Notre Dame','ND','#0C2340','#C99700',8],['Penn State','PSU','#041E42','#F2F2F2',8],['USC','USC','#990000','#FFCC00',8],['Florida State','FSU','#782F40','#CEB888',7],
+  ['Oklahoma','OU','#841617','#FDF9D8',7],['Tennessee','TENN','#FF8200','#F2F2F2',7],['Miami','UM','#005030','#F47321',7],['Texas A&M','TAMU','#500000','#F2F2F2',7],['Ole Miss','MISS','#CE1126','#14213D',7],['Florida','UF','#0021A5','#FA4616',6],
+  ['Auburn','AUB','#0C2340','#E87722',6],['Wisconsin','WIS','#C5050C','#F2F2F2',6],['Washington','UW','#4B2E83','#B7A57A',6],['Indiana','IU','#990000','#EEEDEB',6],['Utah','UTAH','#CC0000','#F2F2F2',5],['Iowa','IOWA','#111111','#FFCD00',5],
+  ['Michigan State','MSU','#18453B','#F2F2F2',5],['UCLA','UCLA','#2D68C4','#F2A900',5],['Kansas State','KSU','#512888','#F2F2F2',5],['Arizona State','ASU','#8C1D40','#FFC627',4],['Boise State','BSU','#0033A0','#D64309',4],['Iowa State','ISU','#C8102E','#F1BE48',4],
+  ['Nebraska','NEB','#E41C38','#FDF2D9',4],['Arkansas','ARK','#9D2235','#F2F2F2',4],['Baylor','BAY','#154734','#FFB81C',4],['TCU','TCU','#4D1979','#A3A9AC',4],['Colorado','COLO','#111111','#CFB87C',4],['Virginia Tech','VT','#630031','#CF4420',4],
+  ['Pitt','PITT','#003594','#FFB81C',3],['Minnesota','MINN','#7A0019','#FFCC33',3],['Kentucky','UK','#0033A0','#F2F2F2',3],['Stanford','STAN','#8C1515','#F2F2F2',3],['Syracuse','CUSE','#F76900','#000E54',2],['Duke','DUKE','#003087','#F2F2F2',2],
+  ['Vanderbilt','VAN','#111111','#CFAE70',2],['Rutgers','RUTG','#CC0033','#111111',2],['Northwestern','NW','#4E2A84','#F2F2F2',2]];
+const HS_NAMES=['Central','Lincoln','Westview','Roosevelt','Northside','Eastlake','Jefferson','Valley','Riverside','Kennedy','Madison','Franklin','Hillcrest','Oak Ridge','Summit','Lakeview','Mountain View','Washington','Southside','Ridgeline','Cedar Creek','Pine Grove','Harbor','Granite Bay','Fairview','Liberty','Heritage','Westlake','Canyon','Mesa'];
+const HS_COLS=[['#1D4ED8','#F8FAFC'],['#B91C1C','#FDE047'],['#166534','#F8FAFC'],['#7C2D12','#FBBF24'],['#4C1D95','#F8FAFC'],['#0F172A','#F97316'],['#0E7490','#F8FAFC'],['#991B1B','#0F172A'],['#1E3A8A','#FACC15'],['#14532D','#FACC15'],['#6B21A8','#FACC15'],['#111827','#E5E7EB'],['#C2410C','#1F2937'],['#BE123C','#F8FAFC'],['#0369A1','#FBBF24'],['#365314','#E5E7EB']];
+const BOWLS=['Citrus Bowl','Sun Bowl','Holiday Bowl','Gator Bowl','Liberty Bowl','Music City Bowl','Alamo Bowl','Las Vegas Bowl'];
+const CLASS_YR=['Freshman','Sophomore','Junior','Senior'];
+function uniFor(c1,c2){const w='#FFFFFF',k='#141414',d=lum(c1)<0.55;return {H:[c1,d?w:k,lum(c2)>0.85?w:c2,c1,c2],A:[w,c1,lum(c2)>0.85?c1:c2,c1,c2],X:[c2,lum(c2)>0.55?c1:w,c2,c2,c1],R:['#1B1D22',c2,'#1B1D22','#1B1D22',c1]};}
+function mkRoadTeam(id,name,abbr,c1,c2,mean,lvl,stadN){const taken=new Set(),roster=[],age=lvl==='hs'?[15,17]:[18,22];
+  for(const pos of POS_ORDER)for(let i=0;i<ROSTER_N[pos];i++)roster.push(mkPlayer(pos,mean+(i===0?3:i===1?0:-4)+gauss()*3,rint(age[0],age[1]),taken));
+  const hs=lvl==='hs';return {id,abbr,name,c1,c2,roster,w:0,l:0,pf:0,pa:0,lvl,uni:uniFor(c1,c2),stadN:stadN||(hs?name+' Field':name+' Stadium'),
+    stad:hs?['O','#6b7280','none',4,'Friday night under the lights: metal bleachers, the band and the whole town in the stands.']:['O',c1,'none',Math.round(mean-8),'A packed college crowd and a marching band that never stops.']};}
+function hsTeam(id,name,mean,used){const c=pick(HS_COLS),ab=name.replace(/[^A-Za-z ]/g,'').split(' ').filter(Boolean),abbr=(ab.length>1?ab.map(w=>w[0]).join('').slice(0,3):ab[0].slice(0,4)).toUpperCase();return mkRoadTeam(id,name+(/High$/.test(name)?'':' High'),abbr,c[0],c[1],mean,'hs');}
+function colMean(c){return 57+c[4]*1.5;}
+function colTeam(id,i,bonus){const c=COLLEGES[i];const T=mkRoadTeam(id,c[0],c[1],c[2],c[3],colMean(c)+(bonus||0),'col');T.ci=i;return T;}
+function proIntoTeam(T,p){const same=T.roster.filter(x=>x.pos===p.pos).sort((a,b)=>a.ovr-b.ovr);T.roster.splice(T.roster.indexOf(same[0]),1);const o=T.roster.find(x=>x.num===p.num);if(o)o.num=numFor(o.pos,new Set(T.roster.map(x=>x.num).concat(p.num)));T.roster.push(p);}
+function newRoadPro(name,pos,num,hsName){newLeague();S.mode='pro';S.user=0;const hs=(String(hsName||'').replace(/[<>]/g,'').trim().slice(0,24))||pick(HS_NAMES);
+  const p=mkPlayer(pos,56,17,null,'S');p.n=String(name||'').replace(/[<>]/g,'').trim().slice(0,22)||p.n;num=Math.round(+num);p.num=num>=0&&num<=99&&!isNaN(num)?num:numFor(pos,new Set());
+  p.spd=clamp(p.spd+3,40,99);p.pot=84;p.pro=true;
+  S.pro={id:p.id,xp:0,sp:1,games:0,start:S.season,goals:null,last:null,done:null,sg:0,sgp:0,xfs:[]};S.playDef=proSide(pos)==='D';S.koRet=false;
+  S.road={stage:'hs',yr:0,hs:hs.replace(/ High$/,'')+' High',car:[],team:null,opps:[],sched:[],wk:0,post:null,sea:null,offers:null,stars:0,draft:null};
+  S.road.team=hsTeam(100,S.road.hs,53);proIntoTeam(S.road.team,p);roadNewSeason();
+  S.news=['Senior year at '+S.road.hs+'. Scouts will be watching. Play well and the big schools come calling.'];save();return p;}
+function roadLabel(){const R=S.road;return R.stage==='hs'?'Senior year · '+R.hs:R.stage==='col'?CLASS_YR[R.yr]+' year · '+COLLEGES[R.ci][0]:R.stage==='offers'?'Recruiting':'NFL Draft';}
+function roadNewSeason(){const R=S.road,T=R.team,p=proP(),hs=R.stage==='hs';R.wk=0;R.post=null;R.sea={gp:0,st:{},aw:[],done:false,champ:null};S.pro.sg=S.pro.sgp=0;S.pro.last=null;
+  let id=101;T.w=T.l=T.pf=T.pa=0;
+  if(hs){const names=shuffle(HS_NAMES.filter(n=>n+' High'!==R.hs)).slice(0,8);R.opps=names.map(n=>hsTeam(id++,n,rnd(49,56)));}
+  else{T.roster=colTeam(100,R.ci,0).roster;proIntoTeam(T,p);
+    const pool=shuffle(COLLEGES.map((c,i)=>i).filter(i=>i!==R.ci)).sort((a,b)=>Math.abs(COLLEGES[a][4]-COLLEGES[R.ci][4])-Math.abs(COLLEGES[b][4]-COLLEGES[R.ci][4])+rnd(-3,3)).slice(0,10);
+    R.opps=shuffle(pool).map(i=>colTeam(id++,i,0));}
+  if(hs){T.roster=hsTeam(100,R.hs,53).roster;proIntoTeam(T,p);}
+  R.sched=R.opps.map((o,i)=>({o:i,h:i%2===0,r:null}));proGoals();}
+function roadMatch(){const R=S.road;if(R.stage!=='hs'&&R.stage!=='col')return null;if(R.wk<R.sched.length){const s=R.sched[R.wk];return {opp:R.opps[s.o],home:s.h,lab:'Week '+(R.wk+1)+' of '+R.sched.length};}
+  if(R.post&&!R.post.done)return {opp:R.post.opp,home:true,lab:R.post.names[R.post.r]};return null;}
+// Box score for a simmed game, scaled to how good you are compared with your teammates.
+function roadSimStats(p,T){const rel=clamp(p.ovr-ratings(T).ovr,-10,15),v=x=>Math.max(0,x*(0.75+Math.random()*0.5)),r=Math.round;
+  switch(p.pos){case 'QB':{const att=r(v(28));return {att,cmp:r(att*clamp(0.6+rel*0.006,0.45,0.78)),py:r(v(205+rel*7)),ptd:r(v(1.6+rel*0.07)),pint:r(v(0.9)),car:r(v(4)),ry:r(v(15))};}
+    case 'RB':return {car:r(v(18)),ry:r(v(85+rel*4)),td:r(v(0.9+rel*0.04)),rec:r(v(2.5)),recy:r(v(20))};
+    case 'WR':return {rec:r(v(4.5+rel*0.12)),recy:r(v(60+rel*3)),td:r(v(0.5+rel*0.03))};case 'TE':return {rec:r(v(3.5+rel*0.08)),recy:r(v(40+rel*2)),td:r(v(0.4))};
+    case 'DL':return {tk:r(v(3+rel*0.08)),sk:r(v(0.6+rel*0.04))};case 'LB':return {tk:r(v(6.5+rel*0.15)),sk:r(v(0.4)),int:Math.random()<0.1?1:0};
+    default:return {tk:r(v(p.pos==='S'?5:3.5)),pd:r(v(0.8)),int:Math.random()<0.18+rel*0.01?1:0};}}
+function addStats(a,b){for(const k in b)if(typeof b[k]==='number'&&STATK.includes(k))a[k]=(a[k]||0)+b[k];}
+function roadResult(us,them,stats){const R=S.road,m=roadMatch(),T=R.team,p=proP();if(!m)return;const win=us>them,o=m.opp;
+  T.pf+=us;T.pa+=them;o.pf+=them;o.pa+=us;if(win){T.w++;o.l++;}else{T.l++;o.w++;}
+  R.sea.gp++;addStats(R.sea.st,stats||roadSimStats(p,T));
+  const tag=(win?'Won ':'Lost ')+us+'-'+them+(m.home?' vs ':' at ')+o.name;
+  if(R.wk<R.sched.length){R.sched[R.wk].r=[us,them];R.wk++;for(const x of R.opps)if(x!==o){if(Math.random()<clamp(0.5+(ratings(x).ovr-55)*0.04,0.15,0.85))x.w++;else x.l++;}
+    S.news.unshift(m.lab+': '+tag+'.');if(R.wk===R.sched.length)roadPostStart();}
+  else{const P=R.post;S.news.unshift(P.names[P.r]+': '+tag+'.');if(!win){P.done=true;}else if(P.r===P.names.length-1){P.done=true;R.sea.champ=P.champ;S.news.unshift(P.champ+'!');}else{P.r++;P.opp=roadPostOpp(P.r);}}
+  if(!roadMatch())roadEndSeason();S.news=S.news.slice(0,16);save();}
+function roadPostStart(){const R=S.road,T=R.team,hs=R.stage==='hs';let names=null,champ='';
+  if(hs){if(T.w>=5){names=['State quarterfinal','State semifinal','State championship'];champ='State champions';}}
+  else if(T.w>=9){names=['Playoff semifinal','National championship'];champ='National champions';}else if(T.w>=6){const b=pick(BOWLS);names=[b];champ=b+' champions';}
+  if(!names){S.news.unshift(hs?'Your team missed the state playoffs.':'No bowl game this year.');return;}
+  R.post={names,r:0,done:false,champ,opp:null};R.post.opp=roadPostOpp(0);S.news.unshift((hs?'You made the state playoffs':names.length>1?'You made the College Football Playoff':'Bowl bid: the '+names[0])+'!');}
+function roadPostOpp(r){const R=S.road,id=150+r,n=R.post.names.length;if(R.stage==='hs')return hsTeam(id,pick(HS_NAMES.filter(n=>n+' High'!==R.hs)),56+r*1.5);
+  const pool=COLLEGES.map((c,i)=>i).filter(i=>i!==R.ci&&(n===1?COLLEGES[i][4]<=7:COLLEGES[i][4]>=8));return colTeam(id,pick(pool),n===1?0:2);}
+function roadEndSeason(){const R=S.road,T=R.team,p=proP(),P=S.pro;if(!R.sea||R.sea.done)return;R.sea.done=true;
+  const rate=P.sgp>=4?P.sg/P.sgp:null,rel=p.ovr-ratings(T).ovr,sc=rel+(rate!=null?(rate-0.45)*20:0)+T.w*0.4+(R.sea.champ?2:0),hs=R.stage==='hs',aw=R.sea.aw;
+  if(hs){if(sc>=19)aw.push('State Player of the Year');if(sc>=13)aw.push('All-State');else if(sc>=8)aw.push('All-District');}
+  else{if(sc>=18&&T.w>=9)aw.push(proSide(p.pos)==='O'?'Heisman Trophy':'Defensive Player of the Year');if(sc>=13)aw.push('All-American');else if(sc>=8)aw.push('All-Conference');}
+  if(R.sea.champ)aw.unshift(R.sea.champ);
+  R.car.push({hs,lab:hs?'Senior · '+R.hs:CLASS_YR[R.yr]+' · '+COLLEGES[R.ci][0],w:T.w,l:T.l,gp:R.sea.gp,st:Object.assign({},R.sea.st),aw:aw.slice(),ovr:p.ovr});
+  p.aw=(p.aw||[]).concat(aw.map(a=>(hs?'High school: ':'College: ')+a));
+  const g=hs?rint(1,3):rint(2,4);p.age++;p.ovr=clamp(p.ovr+g,50,99);p.pot=Math.max(p.pot,p.ovr);
+  S.news.unshift('Season over: '+T.w+'-'+T.l+'. '+(aw.length?'Honors: '+aw.join(', ')+'. ':'')+'You grew '+g+' overall in the offseason.');}
+function roadNext(){const R=S.road;if(!R.sea||!R.sea.done)return;
+  if(R.stage==='hs'){const bon=R.car.reduce((a,c)=>a+c.aw.reduce((x,w)=>x+(/Player of the Year/.test(w)?4:/All-State/.test(w)?3:/All-District/.test(w)?1:/champ/i.test(w)?2:0),0),0),sc=proP().ovr+bon;
+    R.stars=sc>=68?5:sc>=63?4:sc>=59?3:2;const rng={5:[7,10],4:[5,8],3:[3,6],2:[2,4]}[R.stars];
+    R.offers=shuffle(COLLEGES.map((c,i)=>i).filter(i=>COLLEGES[i][4]>=rng[0]&&COLLEGES[i][4]<=rng[1])).slice(0,4).sort((a,b)=>COLLEGES[b][4]-COLLEGES[a][4]);R.stage='offers';
+    S.news.unshift('Recruiting services rate you a '+R.stars+'-star prospect. '+R.offers.length+' schools have offered you a scholarship.');save();return;}
+  if(R.stage==='col'){R.yr++;roadNewSeason();S.news.unshift(CLASS_YR[R.yr]+' year at '+COLLEGES[R.ci][0]+' begins.');save();}}
+function roadCommit(i){const R=S.road;if(R.stage!=='offers'||!R.offers.includes(i))return;const p=proP();R.ci=i;R.yr=0;R.stage='col';R.team=colTeam(100,i,0);proIntoTeam(R.team,p);roadNewSeason();
+  S.news.unshift('You committed to '+COLLEGES[i][0]+'.');save();}
+function roadProjection(){const p=proP(),R=S.road,bon=R.car.filter(c=>!c.hs).reduce((a,c)=>a+c.aw.reduce((x,w)=>x+(/Heisman|Defensive Player/.test(w)?4:/All-American/.test(w)?3:/All-Conference/.test(w)?1:/National champ/.test(w)?1:0),0),0);
+  const sc=p.ovr+bon,pk=Math.max(1,Math.round((82-sc)*8));return {sc,pk,txt:pk<=10?'a top-10 pick':pk<=32?'a first-round pick':pk<=64?'a second-round pick':pk<=96?'a third-round pick':'undrafted, but teams will call'};}
+function roadDeclare(){const R=S.road;if(R.stage!=='col'||!R.sea||!R.sea.done||R.yr<2)return;R.stage='draft';R.draft=null;S.news.unshift('You declared for the '+S.season+' NFL Draft.');save();}
+function roadDraft(){const R=S.road;if(R.stage!=='draft'||R.draft)return;const pr=roadProjection(),order=S.teams.slice().sort((a,b)=>ratings(a).ovr-ratings(b).ovr);
+  let pk=clamp(pr.pk+rint(-5,5),1,999);let tid,txt;if(pk<=ROUNDS*32){tid=order[(pk-1)%32].id;txt='Round '+(Math.floor((pk-1)/32)+1)+', pick '+pk;}else{tid=pick(order.slice(0,12)).id;pk=0;txt='Undrafted free agent';}
+  R.draft={pick:pk,tid,txt};save();}
+function roadToNFL(){const R=S.road;if(R.stage!=='draft'||!R.draft)return;const p=proP(),T=S.teams[R.draft.tid];
+  R.team.roster.splice(R.team.roster.indexOf(p),1);const taken=new Set(T.roster.map(x=>x.num));if(taken.has(p.num)){const o=T.roster.find(x=>x.num===p.num);o.num=numFor(o.pos,taken);}
+  T.roster.push(p);trimRoster(T,ROSTER_MAX);p.rk=S.season;S.user=T.id;R.stage='done';R.team=null;R.opps=null;R.sched=null;R.post=null;R.sea=null;
+  S.pro.sg=S.pro.sgp=0;S.pro.last=null;proGoals();S.news=[(R.draft.pick?T.name+' drafted '+p.n+' ('+R.draft.txt.toLowerCase()+').':p.n+' signed with '+T.name+' as an undrafted free agent.')+' Welcome to the NFL.'];save();}

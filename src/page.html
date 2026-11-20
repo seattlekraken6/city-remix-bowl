@@ -200,6 +200,15 @@ label{color:var(--muted);font-size:13px}
 .goals li{font-weight:500}
 .tbl tr.me td{background:var(--sel)}
 @media (max-width:560px){.pform{grid-template-columns:1fr 1fr}.pform label:first-child{grid-column:1/-1}.pc-stats{grid-template-columns:repeat(2,1fr)}}
+.posgrid.two{grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr))}
+.xfrow{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}.xfrow .eyebrow{margin-bottom:2px}
+.xfgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,190px),1fr));gap:8px;margin-top:8px}
+.xfc{display:flex;flex-direction:column;gap:6px;align-items:flex-start;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:0}
+.xfc b{font-family:var(--display);font-size:18px;text-transform:uppercase;letter-spacing:.03em;line-height:1.1}.xfc small{color:var(--muted);font-size:13px;line-height:1.35;flex:1}
+.xfc.on{border-color:var(--chalk);box-shadow:inset 0 0 0 1px var(--chalk)}
+.stars{color:var(--chalk);letter-spacing:.06em}.stars span{color:var(--line)}
+.offers{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,240px),1fr));gap:10px}
+.offer{display:flex;flex-direction:column;gap:12px;align-items:flex-start;margin:0;min-width:0}.offer .tb{min-width:0;max-width:100%}.offer .tb>div{min-width:0}.offer .tb b{white-space:normal;overflow-wrap:anywhere;font-size:20px;line-height:1.1}
 </style>
 <div id="app">
   <header id="top"></header>
