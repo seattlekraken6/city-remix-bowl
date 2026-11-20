@@ -222,6 +222,7 @@ function renderGame(){const g=gm;if(!g||!ctx)return;setCam();ctx.setTransform(1,
   ctx.fillStyle='rgba(0,0,0,.26)';
   for(const e of g.ents){const s=projW(RX(e.x),0,RZ(e.z));if(!s)continue;const r=cam.F*0.55/s[2];ctx.beginPath();ctx.ellipse(s[0],s[1],r,r*0.4,0,0,6.2832);ctx.fill();}
   const b=g.ball;
+  if(g.rp&&g.rp.feat)for(const e of g.ents)if(e.rp&&e.rp.id===g.rp.feat.id){ring(e.x,e.z,0.75,'rgba(244,196,48,1)',3);ring(e.x,e.z,1.15,'rgba(244,196,48,.6)',2);}
   for(const e of g.ents)if(e.zone&&!e.down){ring(e.x,e.z,0.62,'rgba(255,214,64,.95)',2);ring(e.x,e.z,0.95,'rgba(255,214,64,.55)',1.5);}
   if(live){const car=g.carrier||(b&&b.fly&&!b.ko?b.target:null),pc=c=>g.two&&c.team==='A'?'rgba(255,140,80,.95)':'rgba(90,200,255,.95)';if((uo||g.two)&&car)ring(car.x,car.z,0.85,'rgba(244,196,48,.95)',2.5);for(const c of [g.ctl,g.ctl2])if(c&&c!==car&&!g.pro)ring(c.x,c.z,0.85,pc(c),2.5);
     if(b&&b.fly){ring(b.land.x,b.land.z,0.9,'rgba(255,255,255,.9)',2);ring(b.land.x,b.land.z,0.35,'rgba(255,255,255,.9)',2);}}

@@ -427,11 +427,11 @@ function newPro(name,pos,num,tid){newLeague();S.mode='pro';const drafted=!(tid>=
 function proGoals(){const p=proP();if(!p)return;const f=clamp((S.qlen||4)/4,0.5,2)*(onRoad()?(S.road.stage==='hs'?1.3:1.1):1),pool=shuffle(PRO_GOALS[p.pos].slice()).slice(0,2);
   S.pro.goals=pool.map(([k,n,t])=>{const m=n<=1?(n===1&&f>=1.75?2:n):Math.max(1,Math.round(n*f));return {k,n:m,t:t.replace('{n}',m.toLocaleString('en-US'))};});}
 function goalMet(g,s){const v=s[g.k.replace(/0$/,'')]||0;return /0$/.test(g.k)?v<=0:v>=g.n;}
-function proLine(s,pos){s=s||{};const f=x=>Math.round(x||0);
-  if(pos==='QB')return f(s.cmp)+'/'+f(s.att)+', '+f(s.py)+' yds, '+f(s.ptd)+' TD'+(s.pint?', '+s.pint+' INT':'')+(s.car?' · '+f(s.car)+' runs, '+f(s.ry)+' yds':'');
-  if(pos==='RB')return f(s.car)+' carries, '+f(s.ry)+' yds'+(s.rec?' · '+s.rec+' rec, '+f(s.recy)+' yds':'')+(s.td?' · '+s.td+' TD':'');
-  if(pos==='WR'||pos==='TE')return f(s.rec)+' catches, '+f(s.recy)+' yds'+(s.td?' · '+s.td+' TD':'')+(s.car?' · '+f(s.ry)+' rush yds':'');
-  return f(s.tk)+' tackles'+(s.sk?', '+s.sk+' sacks':'')+(s.pd?', '+s.pd+' pass breakups':'')+(s.int?', '+s.int+' INT':'')+(s.fr?', '+s.fr+' fumble rec':'')+(s.td?', '+s.td+' TD':'');}
+function proLine(s,pos){s=s||{};const f=x=>Math.round(x||0),n=(x,w,ws)=>f(x)+' '+(f(x)===1?w:ws||w+'s');
+  if(pos==='QB')return f(s.cmp)+'/'+f(s.att)+', '+f(s.py)+' yds, '+f(s.ptd)+' TD'+(s.pint?', '+s.pint+' INT':'')+(s.car?' · '+n(s.car,'run')+', '+f(s.ry)+' yds':'');
+  if(pos==='RB')return n(s.car,'carry','carries')+', '+f(s.ry)+' yds'+(s.rec?' · '+s.rec+' rec, '+f(s.recy)+' yds':'')+(s.td?' · '+s.td+' TD':'');
+  if(pos==='WR'||pos==='TE')return n(s.rec,'catch','catches')+', '+f(s.recy)+' yds'+(s.td?' · '+s.td+' TD':'')+(s.car?' · '+f(s.ry)+' rush yds':'');
+  return n(s.tk,'tackle')+(s.sk?', '+n(s.sk,'sack'):'')+(s.pd?', '+n(s.pd,'pass breakup'):'')+(s.int?', '+s.int+' INT':'')+(s.fr?', '+n(s.fr,'fumble recovery','fumble recoveries'):'')+(s.td?', '+s.td+' TD':'');}
 function proXP(s,pos,win,met){s=s||{};const g=k=>s[k]||0;let x;
   if(pos==='QB')x=g('cmp')*3+g('py')/6+g('ptd')*20-g('pint')*12+g('ry')/4+g('td')*20;
   else if(pos==='RB')x=g('ry')/3+g('car')+g('rec')*4+g('recy')/4+g('td')*20;

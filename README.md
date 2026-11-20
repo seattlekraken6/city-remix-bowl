@@ -14,6 +14,7 @@ A 3D low-poly football game that runs in the browser. One file, no dependencies.
 - Audibles, hot routes, hurry-up offense and spikes; adjustable quarter length
 - Weather (rain, snow, wind) and night games
 - Instant replay with four camera angles and a postgame highlight reel
+- A halftime show that names the player of the half, gives his stat line and replays his best plays, plus the top player on the other team
 - Season stats for every player, league records, champions and a Hall of Fame
 - Two-player games on one keyboard and practice drills that earn training points
 - A kickoff power meter and quick games against the computer with any two teams
