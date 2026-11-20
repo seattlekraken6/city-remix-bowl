@@ -209,6 +209,9 @@ label{color:var(--muted);font-size:13px}
 .stars{color:var(--chalk);letter-spacing:.06em}.stars span{color:var(--line)}
 .offers{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,240px),1fr));gap:10px}
 .offer{display:flex;flex-direction:column;gap:12px;align-items:flex-start;margin:0;min-width:0}.offer .tb{min-width:0;max-width:100%}.offer .tb>div{min-width:0}.offer .tb b{white-space:normal;overflow-wrap:anywhere;font-size:20px;line-height:1.1}
+#intro.pop{animation:introIn .45s cubic-bezier(.2,.8,.2,1)}
+@keyframes introIn{from{opacity:0;transform:translateX(-24px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){#intro.pop{animation:none}}
 </style>
 <div id="app">
   <header id="top"></header>

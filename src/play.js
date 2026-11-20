@@ -607,13 +607,93 @@ function callIt(kind,gain,fd,c,tk,passed,note){const qb=gm.by.QB,L=[],uo=uoff(),
   const k=(uo===gm.userHome)?good:-good;if(k>=2)cheer(1);else if(k===1)cheer(0.45);else if(k<=-2)cheer(0.12);
   say(L.filter(x=>x[1]).slice(0,3),gm.lcAny);}
 // ----- stadium introduction before kickoff -----
-function startIntro(){gm.phase='intro';gm.intro={t:0};const H=gm.home,V=gm.userHome?gm.O:gm.U,st=stadOf(H),el=document.getElementById('intro');
-  const caps=gm.U.roster.filter(x=>x.cap).map(x=>x.n),xs=[...gm.U.roster,...gm.O.roster].filter(x=>x.xf).sort((a,b)=>b.ovr-a.ovr).slice(0,4).map(x=>x.n);
-  el.innerHTML='<p class="eyebrow">Welcome to</p><h2>'+stadName(H)+'</h2><p class="sub">'+H.name+' · '+ROOF[st[0]]+' · '+st[3]+',000 seats</p><p class="x">'+esc(st[4])+'</p><p class="x">'+esc(weatherWords(gm.wx))+(gm.wx.night?' · Night game':'')+'</p><p><b>'+V.name+'</b> ('+V.w+'-'+V.l+') at <b>'+H.name+'</b> ('+H.w+'-'+H.l+')</p>'+(caps.length?'<p class="x">Your captains: '+caps.map(esc).join(', ')+'</p>':'')+(xs.length?'<p class="x">X-Factors to watch: '+xs.map(esc).join(', ')+'</p>':'');el.hidden=false;
-  cam.x=0;cam.y=26;cam.z=-54;cam.pitch=0.52;document.getElementById('cap').hidden=true;capT=0;renderPanel();
-  say([[0,'Welcome to '+stadName(H)+'. '+st[4]],[0,'Hello everybody, I\'m '+BOOTH[0]+', alongside '+BOOTH[1]+'. '+V.name+' visit '+H.name+(gm.wx.night?' tonight. ':' today. ')+weatherWords(gm.wx)+'.'],[1,xs.length?'Keep your eyes on '+xs[0]+'. He can take over a game all by himself.':'This one\'s going to be won up front.']],false,true);}
-function stepIntro(dt){const I=gm.intro;I.t+=dt;const u=Math.min(1,I.t/9),e=u*u*(3-2*u);cam.y=26+(12-26)*e;cam.z=-54+32*e;cam.pitch=0.52-0.14*e;cam.x=Math.sin(u*3.1416)*12;if(I.t>11)endIntro();}
-function endIntro(){if(!gm||gm.phase!=='intro')return;document.getElementById('intro').hidden=true;gm.intro=null;cam.x=0;cam.y=10.5;cam.pitch=0.36;startToss(false);}
+// ===== Pregame show: a flyover, the visitors walk out, then the home team's own entrance =====
+const INTRO_FX={ARI:[['fire','smoke'],'Fire shoots out of the tunnel and the desert crowd is on its feet.'],ATL:[['lights','smoke','fire'],'The lights go down and the dome glows red and black.'],
+  BAL:[['flag','fireworks','drum'],'The flag leads them out, and the brass band is rolling.'],BUF:[['fire','fireworks'],'Through the fire, and this crowd has been tailgating since sunrise.'],
+  CAR:[['drum','smoke'],'The drumline pounds as they come out of the smoke.'],CHI:[['flag','smoke'],'No frills here. They jog out into the cold to a wall of noise.'],
+  CIN:[['towels','smoke'],'Orange towels everywhere, and the stripes come out of the smoke.','#FB4F14'],CLE:[['fire','chant'],'The bleachers behind the end zone bark them onto the field.'],
+  DAL:[['flag','fireworks','lights'],'The giant board lights up the dome as they run out under the star.'],DEN:[['fire','smoke'],'A wall of orange, and the thin air does the rest.'],
+  DET:[['lights','smoke'],'The dome goes dark, a roar shakes the speakers, and out they come.'],GB:[['flag','chant'],'Out of the old tunnel and onto the frozen tundra.'],
+  HOU:[['fire','fireworks'],'Fireworks under the roof and fire from the tunnel.'],IND:[['lights','smoke'],'Blue smoke, a light show, and they come running.'],
+  JAX:[['fire','fireworks'],'Teal smoke, fire, and the pools in the end zone are packed.'],KC:[['drum','fireworks'],'A special guest bangs the big drum, and the loudest crowd in football answers.'],
+  LV:[['lights','fire','smoke'],'The dome goes black, the torch flares, and they come out of the dark.'],LAC:[['lights','fireworks'],'Lightning bolts on every screen as they sprint out.'],
+  LAR:[['lights','fireworks'],'A light show under the roof, and here they come.'],MIA:[['fire','confetti'],'Fire, music, and the Florida sun.'],
+  MIN:[['horn','lights','drum'],'A legend sounds the horn, and the whole building answers with the thunder clap.'],NE:[['cannon','flag'],'The minutemen fire their muskets in the end zone, and out they come.'],
+  NO:[['smoke','fireworks','lights'],'The band plays them in, and the dome is shaking.'],NYG:[['flag','smoke'],'Big blue smoke and a wall of noise.'],
+  NYJ:[['fire','chant'],'The crowd spells it out, letter by letter, as they take the field.'],PHI:[['fire','flag'],'The fight song rings out, and the whole stadium sings along.'],
+  PIT:[['towels','smoke'],'Sixty thousand gold towels spinning over their heads.','#FFB612'],SF:[['fire','confetti'],'Gold confetti, fire, and the faithful are on their feet.'],
+  SEA:[['flag','drum'],'A local legend raises the flag, and the crowd shakes the building.'],TB:[['cannon','fireworks'],'The ship fires its cannons and they storm out of the tunnel.'],
+  TEN:[['fire','smoke'],'Fire, smoke, and a sea of blue.'],WAS:[['flag','drum'],'The band strikes up the fight song as they take the field.']};
+function introCfg(H){const c=INTRO_FX[H.abbr];if(c&&!H.lvl)return {fx:c[0],line:c[1],tow:c[2]||null};
+  if(H.lvl==='hs')return {fx:['banner','drum'],line:'The band plays, the cheerleaders hold up the banner, and they bust right through it.'};
+  if(H.lvl==='col')return {fx:['flag','drum','fireworks','smoke'],line:'The band, the flags, and a stadium full of students losing their minds.'};return {fx:['fire','smoke'],line:'Fire and smoke as they take the field.'};}
+const IT={fly:6.5,away:13,home:29,end:31.5};
+function introRoster(T){const L=T===gm.U?gm.LU:gm.LO;return [L.QB,L.RB,...(L.WR||[]).slice(0,3),L.TE,...(L.OL||[]).slice(0,3),...(L.DL||[]).slice(0,2),...(L.LB||[]).slice(0,2),...(L.CB||[]).slice(0,2),(L.S||[])[0]].filter(Boolean);}
+function introEnt(T,rp,x,z){const e=mkEnt('O',T===gm.U?'U':'A','IN',rp,x,z,T===gm.U?gm.kitU:gm.kitO,null);e.z=z;e.dir=Math.PI;e.go=1e9;e.path=[];e.pi=0;e.end='idle';return e;}
+function startIntro(){gm.phase='intro';const H=gm.home,V=gm.userHome?gm.O:gm.U,cfg=introCfg(H);gm.intro={t:0,cfg,shot:0,V,H};gm.fx=[];gm.emit=[];gm.ents=[];FLIP=false;
+  // Visitors: out of the corner tunnel, a walk, then a jog to their sideline.
+  const vs=V===gm.U?-1:1,vx=vs*22;introRoster(V).forEach((rp,i)=>{const e=introEnt(V,rp,vx+rnd(-0.8,0.8),121+i*0.9);e.go=IT.fly+0.4+i*0.32;e.walk=7;
+    e.path=[[vx,111],[vs*25,104],[vs*29.4,40+((i*7)%23)+rnd(-0.6,0.6)]];e.end=pick(['clap','hype','wave','idle','clap']);e.faceX=0;gm.ents.push(e);});
+  // Home: burst out of the tunnel together and gather at the 20 to jump.
+  const hr=introRoster(H),n=hr.length;hr.forEach((rp,i)=>{const e=introEnt(H,rp,rnd(-1.2,1.2),121+i*0.7),a=i/n*6.2832;e.go=IT.away+2.6+i*0.17;e.walk=0;
+    e.path=[[rnd(-1.5,1.5),108],[Math.cos(a)*2.6,80+Math.sin(a)*2.6]];e.end='jump';e.faceX=0;e.faceZ=80;gm.ents.push(e);});
+  if(cfg.fx.includes('flag')&&gm.ents.length){const fe=gm.ents[gm.ents.length-n];fe.flag=true;}
+  introCard(1);document.getElementById('cap').hidden=true;capT=0;renderPanel();
+  const st=stadOf(H);say([[0,'Welcome to '+stadName(H)+'. '+st[4]],[0,'Hello everybody, I\'m '+BOOTH[0]+', alongside '+BOOTH[1]+'. '+V.name+' visit '+H.name+(gm.wx.night?' tonight. ':' today. ')+weatherWords(gm.wx)+'.']],false,true);}
+function introCard(k){const I=gm.intro,H=I.H,V=I.V,st=stadOf(H),el=document.getElementById('intro');let h='';
+  if(k===1)h='<p class="eyebrow">Welcome to</p><h2>'+esc(stadName(H))+'</h2><p class="sub">'+esc(H.name)+' · '+ROOF[st[0]]+' · '+st[3]+',000 seats</p><p class="x">'+esc(st[4])+'</p><p class="x">'+esc(weatherWords(gm.wx))+(gm.wx.night?' · Night game':'')+'</p>';
+  else if(k===2)h='<p class="eyebrow">The visitors</p><h2>'+esc(V.name)+'</h2><p class="sub">'+V.w+'-'+V.l+' · '+ratings(V).ovr+' overall</p>';
+  else if(k===3)h='<p class="eyebrow">Now taking the field</p><h2>'+esc(H.name)+'</h2><p class="sub">'+H.w+'-'+H.l+' · '+ratings(H).ovr+' overall</p><p class="x">'+esc(I.cfg.line)+'</p>';
+  else{const caps=gm.U.roster.filter(x=>x.cap).map(x=>x.n),xs=[...gm.U.roster,...gm.O.roster].filter(x=>x.xf).sort((a,b)=>b.ovr-a.ovr).slice(0,4).map(x=>x.n+' ('+xfName(x)+')');
+    h='<p class="eyebrow">Today\'s matchup</p><h2>'+esc(V.name)+' at '+esc(H.name)+'</h2><p class="sub">'+V.w+'-'+V.l+' at '+H.w+'-'+H.l+'</p>'+(caps.length?'<p class="x">Your captains: '+caps.map(esc).join(', ')+'</p>':'')+(xs.length?'<p class="x">X-Factors to watch: '+xs.map(esc).join(', ')+'</p>':'');}
+  el.innerHTML=h;el.hidden=false;el.classList.remove('pop');void el.offsetWidth;el.classList.add('pop');}
+function camLook(x,y,z,tx,ty,tz){cam.x=x;cam.y=y;cam.z=z;cam.yaw=Math.atan2(tx-x,tz-z);cam.pitch=Math.atan2(y-ty,Math.hypot(tx-x,tz-z));}
+const ease=u=>{u=clamp(u,0,1);return u*u*(3-2*u);},lerp=(a,b,u)=>a+(b-a)*u;
+function stepIntro(dt){const I=gm.intro,t0=I.t;I.t+=dt;const t=I.t,cfg=I.cfg,fx=cfg.fx,H=I.H,V=I.V,at=x=>t0<x&&t>=x;
+  // ----- cameras -----
+  if(t<IT.fly){const u=ease(t/IT.fly);camLook(lerp(-30,-12,u),lerp(46,15,u),lerp(-46,10,u),lerp(0,0,u),0,lerp(55,72,u));}
+  else if(t<IT.away){const u=ease((t-IT.fly)/(IT.away-IT.fly)),vs=V===gm.U?-1:1;camLook(vs*lerp(4,10,u),lerp(5.5,7,u),lerp(96,84,u),vs*lerp(21,27,u),1.4,lerp(116,96,u));}
+  else if(t<IT.away+5.2){const u=ease((t-IT.away)/5.2);camLook(lerp(2.5,0.8,u),lerp(2.6,3.4,u),lerp(99,96,u),0,2.4,118);}
+  else if(t<IT.away+10){const u=ease((t-IT.away-5.2)/4.8);let cx=0,cz=0,n=0;for(const e of gm.ents)if(e.team===(H===gm.U?'U':'A')&&e.go<t){cx+=e.x;cz+=e.z;n++;}if(n){cx/=n;cz/=n;}else cz=110;
+    camLook(lerp(0.8,9,u),lerp(3.4,6,u),lerp(96,66,u),cx,1.2,cz);}
+  else if(t<IT.home){const a=(t-IT.away-10)*0.32;camLook(Math.sin(a)*11,4.2,80-Math.cos(a)*11,0,1.3,80);}
+  else{const u=ease((t-IT.home)/(IT.end-IT.home));camLook(lerp(Math.sin((IT.home-IT.away-10)*0.32)*11,0,u),lerp(4.2,13,u),lerp(80-Math.cos((IT.home-IT.away-10)*0.32)*11,30,u),0,0,lerp(80,62,u));}
+  // ----- story beats -----
+  if(at(IT.fly)){introCard(2);say([[0,'Here come the visitors. The '+V.name+' take the field.'],[1,V.w+V.l?'They come in at '+V.w+' and '+V.l+'.':'They\'ve had a good week of practice.']],false,true);cheer(0.25);}
+  if(at(IT.away)){introCard(3);say([[0,'And now, the home team. Here come the '+H.name+'!',2],[1,cfg.line]],false,true);
+    if(fx.includes('smoke')||fx.includes('lights')||H.lvl!=='hs')gm.emit.push({k:'smoke',x:0,z:117,t1:IT.away+7,col:fx.includes('smoke')?H.c1:'#d8dde3'});
+    if(fx.includes('horn'))sfx('horn');if(fx.includes('chant'))for(let k=0;k<4;k++)setTimeout(()=>cheer(0.7),k*700);if(fx.includes('towels'))gm.towel=I.cfg.tow||H.c2;}
+  if(fx.includes('drum')&&t>IT.away&&t<IT.away+4.5&&Math.floor(t0*2.2)!==Math.floor(t*2.2))sfx('drum');
+  if(fx.includes('lights'))gm.dim=t>IT.away&&t<IT.away+2.8?1:t>IT.away+2.8&&t<IT.away+3.6?(Math.random()<0.5?0.2:1):0;
+  if(at(IT.away+2.5)){cheer(1);if(fx.includes('fire')){gm.emit.push({k:'fire',x:-4.2,z:111.5,t1:IT.away+5},{k:'fire',x:4.2,z:111.5,t1:IT.away+5});sfx('fire');}
+    if(fx.includes('cannon'))for(let k=0;k<3;k++)setTimeout(()=>{if(!gm||!gm.fx)return;sfx('boom');for(const x of [-30,30])for(let j=0;j<10;j++)gm.fx.push({k:'s',x:x+rnd(-1,1),y:9+rnd(0,1),z:127,vx:rnd(-1,1),vy:rnd(0.5,2),vz:rnd(-2,0),r:rnd(0.8,1.6),life:0,max:rnd(2,3),col:'#e9ecef'});},k*650);
+    if(fx.includes('confetti'))gm.emit.push({k:'conf',x:0,z:96,t1:IT.home});}
+  if(fx.includes('fireworks')&&t>IT.away+2.6&&t<IT.away+9&&Math.random()<dt*2.2)gm.fx.push({k:'rk',x:rnd(-30,30),y:20,z:rnd(126,140),vx:rnd(-2,2),vy:rnd(24,30),vz:0,life:0,max:rnd(0.9,1.3),col:pick([H.c1,H.c2,'#ffffff','#ffd34d'])});
+  if(at(IT.away+10.2)){say([[1,pick(['Listen to this place.','You can feel the energy in here.','This crowd is ready.'])]],false,true);cheer(0.8);}
+  if(at(IT.home)){introCard(4);gm.towel=null;}
+  // ----- people -----
+  for(const e of gm.ents){if(t<e.go){e.vx=e.vz=0;continue;}if(e.pi<e.path.length){const w=e.path[e.pi],dx=w[0]-e.x,dz=w[1]-e.z,l=Math.hypot(dx,dz);
+      if(l<0.5){e.pi++;if(e.pi>=e.path.length){e.anim=e.end;e.animT=gm.now;e.face={x:e.faceX||0,z:e.faceZ!=null?e.faceZ:e.z};}continue;}
+      const sp=(t-e.go)<(e.walk?e.walk/2.2:0)?2.2:e.team===(H===gm.U?'U':'A')?6.6:5;accel(e,dx/l*sp,dz/l*sp,dt);}
+    else accel(e,0,0,dt);e.x+=e.vx*dt;e.z+=e.vz*dt;}
+  if(gm.banner==null&&fx.includes('banner'))gm.banner={z:108.5,torn:0};if(gm.banner&&!gm.banner.torn)for(const e of gm.ents)if(e.go<t&&Math.abs(e.z-gm.banner.z)<0.6&&Math.abs(e.x)<4.5){gm.banner.torn=gm.now;sfx('rip');cheer(1);}
+  // ----- particles -----
+  for(const m of gm.emit){if(t>m.t1)continue;if(m.k==='smoke'&&Math.random()<dt*11)gm.fx.push({k:'s',x:m.x+rnd(-3.5,3.5),y:rnd(0.3,1.6),z:m.z+rnd(-5,3),vx:rnd(-1.2,1.2),vy:rnd(0.2,0.7),vz:rnd(-2.2,-0.6),r:rnd(0.8,1.4),life:0,max:rnd(2.2,3.4),col:m.col});
+    if(m.k==='fire')for(let j=0;j<3;j++)gm.fx.push({k:'f',x:m.x+rnd(-0.3,0.3),y:0.3,z:m.z+rnd(-0.3,0.3),vx:rnd(-0.6,0.6),vy:rnd(9,14),vz:rnd(-0.6,0.6),r:rnd(0.35,0.6),life:0,max:rnd(0.35,0.6)});
+    if(m.k==='conf'&&Math.random()<dt*60)gm.fx.push({k:'c',x:rnd(-14,14),y:rnd(14,20),z:m.z+rnd(-14,14),vx:rnd(-0.6,0.6),vy:rnd(-2.2,-1.2),vz:rnd(-0.6,0.6),r:0.18,life:0,max:9,col:pick([H.c1,H.c2,'#ffffff','#ffd34d'])});}
+  const out=[];for(const p of gm.fx){p.life+=dt;if(p.life>p.max){if(p.k==='rk'){sfx('pop');for(let j=0;j<46;j++){const a=Math.random()*6.2832,b=Math.random()*3.1416,v=rnd(7,11);out.push({k:'w',x:p.x,y:p.y,z:p.z,vx:Math.cos(a)*Math.sin(b)*v,vy:Math.cos(b)*v,vz:Math.sin(a)*Math.sin(b)*v,r:0.32,life:0,max:rnd(1.1,1.6),col:p.col});}gm.flashT=gm.now+0.6;}continue;}
+    p.x+=p.vx*dt;p.y+=p.vy*dt;p.z+=p.vz*dt;if(p.k==='s'){p.r+=dt*1.1;p.vy*=1-dt*0.5;p.vz*=1-dt*0.6;}else if(p.k==='f'){p.vy*=1-dt*2;p.r+=dt*0.8;}else if(p.k==='w'){p.vy-=9*dt;p.vx*=1-dt*0.9;p.vz*=1-dt*0.9;}else if(p.k==='rk'){p.vy-=12*dt;}
+    else if(p.k==='c'){p.x+=Math.sin(gm.now*3+p.max)*dt;if(p.y<0.05){p.y=0.05;p.vy=0;p.vx=p.vz=0;}}out.push(p);}
+  gm.fx=out.length>900?out.slice(-900):out;
+  if(t>IT.end)endIntro();}
+function endIntro(){if(!gm||gm.phase!=='intro')return;document.getElementById('intro').hidden=true;gm.intro=null;gm.ents=[];gm.fx=[];gm.emit=[];gm.towel=null;gm.dim=0;gm.banner=null;cam.x=0;cam.y=10.5;cam.yaw=0;cam.pitch=0.36;startToss(false);}
+// Little synthesized sounds for the pregame: drums, the horn, fireworks, fire, cannons, the banner.
+function sfx(k){try{if(!AC||S.crowd===false)return;const t=AC.currentTime,g=AC.createGain();g.connect(AC.destination);
+  const noise=(dur,f,type)=>{const n=Math.floor(AC.sampleRate*dur),b=AC.createBuffer(1,n,AC.sampleRate),d=b.getChannelData(0);for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/n,2);const s=AC.createBufferSource();s.buffer=b;const fl=AC.createBiquadFilter();fl.type=type||'lowpass';fl.frequency.value=f;s.connect(fl);fl.connect(g);s.start(t);};
+  if(k==='drum'){const o=AC.createOscillator();o.frequency.setValueAtTime(110,t);o.frequency.exponentialRampToValueAtTime(48,t+0.3);o.connect(g);g.gain.setValueAtTime(0.55,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.45);o.start(t);o.stop(t+0.5);}
+  else if(k==='horn'){for(const f of [73,110,146]){const o=AC.createOscillator(),lp=AC.createBiquadFilter();o.type='sawtooth';o.frequency.setValueAtTime(f*0.94,t);o.frequency.linearRampToValueAtTime(f,t+0.5);lp.type='lowpass';lp.frequency.value=700;o.connect(lp);lp.connect(g);o.start(t);o.stop(t+3.2);}
+    g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(0.12,t+0.45);g.gain.setValueAtTime(0.12,t+2.4);g.gain.exponentialRampToValueAtTime(0.0001,t+3.1);}
+  else if(k==='boom'){g.gain.value=0.9;noise(1.1,260);}else if(k==='pop'){g.gain.value=0.35;noise(0.7,900);}else if(k==='fire'){g.gain.value=0.35;noise(1.6,1400,'bandpass');}else if(k==='rip'){g.gain.value=0.3;noise(0.35,2500,'highpass');}}catch(e){}}
 // ----- flags: you accept or decline when the other team commits the foul -----
 function penCalc(pen,pos,down,toGo){if(pen.spot)return {pos:pen.spot,down:1,toGo:Math.min(10,100-pen.spot)};
   if(pen.off){const y=Math.min(pen.y,Math.max(1,Math.floor(pos/2)));return {pos:pos-y,down,toGo:toGo+y};}
@@ -946,6 +1026,10 @@ function updPose(e,dt){const p=e.pose,sp=Math.hypot(e.vx,e.vz),t=gm.t,now=gm.now
   else if(an==='kickleg'){const v=u/0.5;if(v<0.84)T.rTh=-0.7;else if(v<1.5){T.rTh=1.6;T.rKn=0.05;T.lean=-0.12;T.lArm=1.2;T.hop=0.06;}else e.anim='idle';}
   else if(an==='down'){const q=e.spl||[2.2,2.2,0.2,0.2,0.3,0.1];T.fall=e.fallAmt;T.roll=e.rollT*1.35;T.lArm=q[0];T.rArm=q[1];T.lEl=q[2];T.rEl=q[3];T.lTh=q[4]*0.5;T.rTh=q[5]*0.3;T.lKn=q[4];T.rKn=q[5];T.lean=0;}
   else if(an==='dive'){T.fall=e.down?(e.fallAmt||0.92):0.92;T.roll=e.down?e.rollT:0;T.lArm=T.rArm=2.2;T.lEl=T.rEl=0.1;T.lean=0;T.lTh=T.rTh=0.1;T.lKn=T.rKn=0.15;}
+  else if(an==='jump'){const w=Math.max(0,Math.sin(now*6.8));T.hop=w*0.6;T.lArm=T.rArm=2.5+w*0.5;T.lEl=T.rEl=0.35;T.lTh=T.rTh=0.4*(1-w);T.lKn=T.rKn=0.9*(1-w);T.spread=0.22;T.lean=0.1*(1-w);}
+  else if(an==='hype'){const w=Math.sin(now*10+e.ph);T.lArm=T.rArm=1.3+w*0.7;T.lEl=T.rEl=1.6;T.lean=0.25;T.lTh=T.rTh=0.4;T.lKn=T.rKn=0.7;T.hop=Math.abs(w)*0.05;}
+  else if(an==='wave'){T.rArm=2.9;T.rEl=0.25+0.35*Math.sin(now*9+e.ph);T.spread=0.25;}
+  else if(an==='clap'){const w=Math.sin(now*14+e.ph);T.lArm=T.rArm=1.45;T.lEl=T.rEl=1.1;T.spread=0.04+0.24*Math.max(0,w);}
   else if(an==='cele'){T.lArm=T.rArm=3.0;T.lEl=T.rEl=0.1;T.lean=-0.05;T.hop=Math.abs(Math.sin(now*9+e.ph))*0.4;T.spread=0.3;}
   else if(an==='c0'){if(u<0.5){T.rArm=3.1;T.rEl=0.1;T.lean=-0.15;}else if(u<0.9){T.rArm=0.5;T.rEl=0;T.lean=0.55;}else{T.lArm=T.rArm=1.5;T.lEl=T.rEl=2.2;T.spread=1.0;T.lean=-0.12;T.hop=Math.abs(Math.sin(now*7))*0.12;}}
   else if(an==='c1'){const w=Math.sin(now*8);T.lArm=1.9+w*0.9;T.rArm=1.9-w*0.9;T.lEl=T.rEl=0.9;T.spread=0.5;T.lean=0.1*Math.sin(now*4);T.hop=Math.abs(w)*0.18;T.lTh=0.25*w;T.rTh=-0.25*w;T.lKn=T.rKn=0.4;e.dir+=dt*3.2;}
@@ -958,7 +1042,7 @@ function updPose(e,dt){const p=e.pose,sp=Math.hypot(e.vx,e.vz),t=gm.t,now=gm.now
   if(e.spin>t){e.dir+=dt*15;return;}
   let want=e.dir;if(e.face)want=Math.atan2(e.face.x-e.x,e.face.z-e.z);else if(sp>1)want=Math.atan2(e.vx,e.vz);
   let dd=want-e.dir;while(dd>Math.PI)dd-=2*Math.PI;while(dd<-Math.PI)dd+=2*Math.PI;e.dir+=dd*(1-Math.exp(-dt*12));}
-function updCam(dt){cam.yaw=0;const uo=uoff()||gm.two;let fx=gm.bx,fz=uo?gm.pos-5:gm.pos+5,back=uo?15.5:19;const b=gm.ball,c=gm.ctl,ph=gm.phase;
+function updCam(dt){if(gm.phase==='intro')return;cam.yaw=0;const uo=uoff()||gm.two;let fx=gm.bx,fz=uo?gm.pos-5:gm.pos+5,back=uo?15.5:19;const b=gm.ball,c=gm.ctl,ph=gm.phase;
   if(ph==='intro')return;if(ph==='pat'){gm.camSnap=false;return;}
   let yT=10.5,pT=0.36;if((ph==='huddle'||ph==='presnap')&&!gm.ko){yT=12;pT=0.39;back+=1.5;fx*=0.6;if(uo)fz+=2.5;}
   if(ph==='kick'||ph==='kanim'){fx=gm.bx;fz=gm.kz+2;back=15;}

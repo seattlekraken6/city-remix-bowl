@@ -19,6 +19,8 @@ A 3D low-poly football game that runs in the browser. One file, no dependencies.
 - A kickoff power meter and quick games against the computer with any two teams
 - Be a Pro: create one player and play his whole career, starting in high school, then a real college program and the NFL Draft, with game goals, XP, skill points, unlockable X-Factors, trade requests, retirement and a shot at the Hall of Fame
 - Three different X-Factors for every position, so stars at the same position play differently
+- A broadcast-style pregame show: a stadium flyover, the visitors walking out, and each home team's own entrance (fire, smoke, flags, fireworks, towels, drums, the horn, cannons, a paper banner in high school), ending with the team jumping together
+- Stadiums with lower and upper decks, suites, ribbon boards, video boards, a midfield logo and players on both sidelines; high school games are played at small bleacher fields
 
 ## Run it
 
