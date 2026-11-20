@@ -16,6 +16,7 @@ A 3D low-poly football game that runs in the browser. One file, no dependencies.
 - Instant replay with four camera angles and a postgame highlight reel
 - Season stats for every player, league records, champions and a Hall of Fame
 - Two-player games on one keyboard and practice drills that earn training points
+- A kickoff power meter and quick games against the computer with any two teams
 
 ## Run it
 
