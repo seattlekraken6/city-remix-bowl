@@ -10,6 +10,12 @@ A 3D low-poly football game that runs in the browser. One file, no dependencies.
 - Accept or decline penalties, captains, a chosen kick returner, and end-of-season awards
 - Coin toss, running game clock with a play clock and delay of game, three timeouts per half, and a sim-drive button
 - Spin moves, interception returns and pick-sixes, and occasional injuries with backups stepping in
+- Fumbles and loose balls, laterals, onside kicks, fake punts and field goals, flea flickers and reverses, two-back formations
+- Audibles, hot routes, hurry-up offense and spikes; adjustable quarter length
+- Weather (rain, snow, wind) and night games
+- Instant replay with four camera angles and a postgame highlight reel
+- Season stats for every player, league records, champions and a Hall of Fame
+- Two-player games on one keyboard and practice drills that earn training points
 
 ## Run it
 

@@ -168,6 +168,15 @@ label{color:var(--muted);font-size:13px}
 #bug .mid em.run{display:inline-block;width:6px;height:6px;border-radius:50%;background:#5fd38a;margin-left:6px;vertical-align:middle;animation:blink 1s infinite}@keyframes blink{50%{opacity:.25}}
 .tag.inj{color:#fff;background:#b3261e;border-color:#b3261e}
 .pbtabs+.row.sp{margin-top:6px;margin-bottom:8px}
+.drills{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}
+.drill{display:flex;flex-direction:column;gap:4px;text-align:left;background:var(--bg);color:var(--chalk);border:1px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer;font:inherit}
+.drill b{font-family:var(--display);font-size:20px;text-transform:uppercase;letter-spacing:.03em}.drill small{color:var(--muted);line-height:1.35}.drill span{font-size:12px;color:var(--good)}.drill.done span{color:var(--muted)}
+.drill:hover{border-color:var(--chalk)}
+.keys{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin:8px 0}.keys div{display:flex;flex-direction:column;gap:2px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px}.keys b{font-family:var(--display);font-size:17px;text-transform:uppercase}
+.wxchip{font-size:11px;padding:2px 6px;border-radius:4px;background:rgba(150,190,230,.18);color:#cfe3f7;white-space:nowrap}
+.flagchip.rp{background:#c9302c;color:#fff}
+.tbl.sm td,.tbl.sm th{padding:3px 8px;font-size:13px}
+@media (max-width:560px){.wxchip{display:none}.flagchip.rp{font-size:11px;padding:1px 5px}}
 </style>
 <div id="app">
   <header id="top"></header>

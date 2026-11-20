@@ -99,13 +99,15 @@ function genFA(n){const out=[];for(let i=0;i<n;i++){const pos=pick(FA_BAG);out.p
 function newLeague(){NID=1;
   const teams=TEAM_DEFS.map((d,i)=>{const taken=new Set(),roster=[];
     for(const r of REAL[d[0]]){let num=r[3];if(taken.has(num))num=numFor(r[1],taken);else taken.add(num);
-      const p={id:NID++,n:r[0],pos:r[1],age:r[5],ovr:r[2],dev:devFor(r[2],r[5],r[4]),pot:r[2],spd:spdFor(r[1],r[2]),num,xf:r[4]===1,rk:r[5]<=22?2026:0};p.pot=potFor(p);roster.push(p);}
+      const p={id:NID++,n:r[0],pos:r[1],age:r[5],ovr:r[2],dev:devFor(r[2],r[5],r[4]),pot:r[2],spd:spdFor(r[1],r[2]),num,xf:r[4]===1,rk:r[5]<=22?2026:0};p.pot=potFor(p);p.leg=Math.round(Math.max(0,r[5]-22)*Math.max(0,r[2]-82)/6*10)/10;roster.push(p);}
     for(const pos of POS_ORDER)while(roster.filter(p=>p.pos===pos).length<ROSTER_N[pos])roster.push(mkPlayer(pos,rnd(60,67),rint(22,25),taken));
     return {id:i,abbr:d[0],name:d[1],c1:d[2],c2:d[3],conf:d[4],div:d[5],roster,w:0,l:0,pf:0,pa:0};});
-  S={v:4,talk:2,pst:{},awards:null,season:2026,week:0,user:-1,teams,schedule:[],phase:'regular',po:null,picks:[],pid:1,news:[],offer:null,nid:NID,champ:null,last:'',diff:1,playDef:true,speed:1,koRet:true,tp:12,draft:null,myPicks:[],fa:[],rank:{}};
+  S={v:5,qlen:4,rec:{s:{},c:{}},hof:[],hist:[],drill:null,gpU:0,talk:2,pst:{},awards:null,season:2026,week:0,user:-1,teams,schedule:[],phase:'regular',po:null,picks:[],pid:1,news:[],offer:null,nid:NID,champ:null,last:'',diff:1,playDef:true,speed:1,koRet:true,tp:12,draft:null,myPicks:[],fa:[],rank:{}};
   S.picks=[...mkPicks(2027),...mkPicks(2028)];S.fa=genFA(60);computeRanks(false);S.schedule=makeSchedule(S.season);return S;}
 // Brings a save from the previous version up to date.
-function migrate(){if(S.v>=4)return;if(S.talk==null)S.talk=2;if(!S.pst)S.pst={};if(S.season===2026)for(const T of S.teams)for(const q of T.roster)if(q.rk==null&&q.age<=22)q.rk=2026;if(S.v>=3){S.v=4;return;}
+function migrate(){if(S.v<4)migrate4();if(S.v<5){S.qlen=S.qlen||4;S.rec=S.rec||{s:{},c:{}};S.hof=S.hof||[];S.hist=S.hist||[];S.gpU=S.gpU||0;
+  for(const T of S.teams)for(const p of T.roster)if(p.leg==null)p.leg=Math.round(Math.max(0,p.age-(S.season-2026)-22)*Math.max(0,p.ovr-82)/6*10)/10;S.v=5;}}
+function migrate4(){if(S.talk==null)S.talk=2;if(!S.pst)S.pst={};if(S.season===2026)for(const T of S.teams)for(const q of T.roster)if(q.rk==null&&q.age<=22)q.rk=2026;if(S.v>=3){S.v=4;return;}
   for(const T of S.teams)for(const p of T.roster)if(!p.dev){p.dev=devFor(p.ovr,p.age,p.xf?1:0);if(p.dev==='N'&&p.pot-p.ovr>=8)p.dev='S';}
   if(S.draft)for(const p of S.draft.pool)if(!p.dev)p.dev=p.pot-p.ovr>=11?'E':p.pot-p.ovr>=6?'S':'N';
   if(!S.fa)S.fa=genFA(60);if(S.speed==null)S.speed=1;if(S.koRet==null)S.koRet=true;if(!S.rank){S.rank={};computeRanks(false);}S.v=4;}
@@ -171,7 +173,7 @@ function finishRound(){const po=S.po,losers=po.games.map(g=>g.hs>g.as?g.a:g.h);
   po.log.push({name:roundName(),games:po.games.map(g=>({h:g.h,a:g.a,hs:g.hs,as:g.as}))});
   const fin=po.games.length===1&&po.games[0].conf==='F',g0=po.games[0];
   for(const c of ['A','N'])po.alive[c]=po.alive[c].filter(id=>!losers.includes(id));
-  if(fin){S.champ=g0.hs>g0.as?g0.h:g0.a;S.phase='offseason';po.games=[];computeAwards();S.news.unshift(S.teams[S.champ].name+' win the '+S.season+' Gridiron Bowl.');}
+  if(fin){S.champ=g0.hs>g0.as?g0.h:g0.a;S.phase='offseason';po.games=[];recordSeason();computeAwards();S.hist=S.hist||[];S.hist.unshift({y:S.season,champ:S.champ,ru:g0.hs>g0.as?g0.a:g0.h,sc:Math.max(g0.hs,g0.as)+'-'+Math.min(g0.hs,g0.as),mvp:S.awards&&S.awards.list[0]?S.awards.list[0].n+' ('+S.teams[S.awards.list[0].team].abbr+')':''});S.news.unshift(S.teams[S.champ].name+' win the '+S.season+' Gridiron Bowl.');}
   else buildRound();}
 function completeStep(played){const games=currentGames(),reg=S.phase==='regular';
   for(const g of games)if(g.hs==null){const r=simGame(S.teams[g.h],S.teams[g.a]);g.hs=r[0];g.as=r[1];}
@@ -188,10 +190,12 @@ function completeStep(played){const games=currentGames(),reg=S.phase==='regular'
     if(S.week>=S.schedule.length)startPlayoffs();else if(S.week<TRADE_DEADLINE)makeOffer();else{if(S.week===TRADE_DEADLINE)S.news.unshift('The trade deadline has passed. Trades reopen in the offseason.');S.offer=null;}}
   else finishRound();
   if(S.news.length>16)S.news.length=16;save();}
-function finishUserGame(us,them){const m=userMatch();if(m){const home=m.h===S.user;m.hs=home?us:them;m.as=home?them:us;}completeStep(true);}
+function finishUserGame(us,them){if(S.phase==='regular')S.gpU=(S.gpU||0)+1;const m=userMatch();if(m){const home=m.h===S.user;m.hs=home?us:them;m.as=home?them:us;}completeStep(true);}
 
 // ===== end-of-season awards =====
-function statLine(p,T){const o=Math.max(0,p.ovr-68),w=T.w,r=Math.round,f=x=>r(x).toLocaleString('en-US');
+function statLine(p,T){const o=Math.max(0,p.ovr-68),w=T.w,r=Math.round,f=x=>r(x).toLocaleString('en-US'),s=p.ss;
+  if(s){if(p.pos==='QB')return f(s.py||0)+' yards, '+(s.ptd||0)+' touchdowns';if(p.pos==='RB')return f(s.ry||0)+' rushing yards, '+(s.td||0)+' touchdowns';if(p.pos==='WR'||p.pos==='TE')return (s.rec||0)+' catches, '+f(s.recy||0)+' yards'+(s.td?', '+s.td+' touchdowns':'');
+    if(p.pos==='DL')return (s.sk||0)+' sacks, '+(s.tk||0)+' tackles';if(p.pos==='LB')return (s.tk||0)+' tackles, '+(s.sk||0)+' sacks';if(p.pos==='CB'||p.pos==='S')return (s.int||0)+' interceptions, '+(s.pd||0)+' passes defended';if(p.pos==='K')return (s.fgm||0)+' of '+(s.fga||0)+' field goals';}
   if(p.pos==='QB')return f(2700+o*58+w*40)+' yards, '+r(13+o*0.85+w*0.55)+' touchdowns';
   if(p.pos==='RB')return f(620+o*36+w*12)+' rushing yards, '+r(3+o*0.42)+' touchdowns';
   if(p.pos==='WR')return r(50+o*2.1)+' catches, '+f(560+o*37)+' yards, '+r(2+o*0.4)+' touchdowns';
@@ -212,6 +216,57 @@ function computeAwards(){const yr=S.season,all=[],rooks=[];
   const pro=[];for(const [pos,n] of [['QB',1],['RB',1],['WR',2],['TE',1],['OL',2],['DL',2],['LB',2],['CB',2],['S',1],['K',1]]){
     for(const x of all.filter(y=>y.p.pos===pos).sort((a,b)=>b.v-a.v).slice(0,n)){pro.push({pos,n:x.p.n,team:x.T.id});x.p.aw=(x.p.aw||[]).concat(yr+' All-Pro');if(x.T.id===S.user){S.tp+=2;S.news.unshift(x.p.n+' was named All-Pro. (+2 training points)');}}}
   S.awards={yr,list,pro};}
+// ===== weather for a home game: roof, season week and city decide it =====
+const COLD=['BUF','NE','NYJ','NYG','CLE','PIT','CIN','BAL','CHI','GB','DEN','KC','PHI','WAS'],WINDY=['BUF','CHI','CLE','NE','NYJ','NYG','GB'];
+function gameWeather(H){const st=STAD[H.abbr]||['O'],late=S.phase==='playoffs'||S.week>=11,night=Math.random()<(S.phase==='playoffs'?0.45:0.3);
+  if(st[0]==='D'||st[0]==='T')return {sky:'clear',wind:0,wdir:1,night,indoor:true};
+  let sky='clear';const r=Math.random();
+  if(COLD.includes(H.abbr)&&r<(late?0.3:S.week>=8?0.08:0))sky='snow';
+  else if(Math.random()<(H.abbr==='SEA'?0.32:H.abbr==='MIA'||H.abbr==='TB'||H.abbr==='JAX'?0.16:0.11))sky='rain';
+  const wind=Math.round(rint(0,9)+(WINDY.includes(H.abbr)?rint(0,10):0)+(sky!=='clear'?rint(0,5):0));
+  return {sky,wind,wdir:Math.random()<0.5?-1:1,night,indoor:false};}
+function weatherWords(w){if(w.indoor)return 'Indoors, so the weather won\'t matter';const s=w.sky==='snow'?'Snow is coming down':w.sky==='rain'?'It\'s raining':w.night?'A clear night':'Clear skies';return s+(w.wind>=12?', and the wind is gusting at '+w.wind+' miles an hour':w.wind>=6?', with a '+w.wind+' mile-an-hour wind':'');}
+// ===== season stats, records and the Hall of Fame =====
+const r1=x=>Math.round(x*10)/10,nn=x=>Math.max(0,Math.round(x));
+// Season numbers for players in simulated games, scaled by rating, team record and role.
+function modelStats(p,T,share){const o=Math.max(0,p.ovr-68),w=T.w,f=share*(isStarter(T,p)?1:0.12),g=()=>gauss();let s={};
+  if(p.pos==='QB'){const att=520+o*3+g()*25;s={att:att,cmp:att*clamp(0.6+o*0.004+g()*0.015,0.5,0.75),py:2700+o*58+w*40+g()*250,ptd:13+o*0.85+w*0.55+g()*3,pint:clamp(15-o*0.3+g()*2.5,2,25),car:40+Math.random()*30,ry:150+o*4+g()*60};}
+  else if(p.pos==='RB')s={car:180+o*6+g()*20,ry:620+o*36+w*12+g()*120,td:3+o*0.42+g()*2,rec:25+o*0.8,recy:200+o*7};
+  else if(p.pos==='WR')s={rec:50+o*2.1+g()*8,recy:560+o*37+g()*120,td:2+o*0.4+g()*2};
+  else if(p.pos==='TE')s={rec:38+o*2+g()*6,recy:380+o*30+g()*90,td:2+o*0.3+g()*1.5};
+  else if(p.pos==='DL')s={tk:28+o*1.3+g()*5,sk:2+o*0.4+g()*1.5};
+  else if(p.pos==='LB')s={tk:78+o*2.6+g()*10,sk:1+o*0.18+g(),int:clamp(o*0.08+g()*0.8,0,6)};
+  else if(p.pos==='CB'||p.pos==='S')s={tk:45+o+g()*8,int:clamp(1+o*0.2+g()*1.2,0,12),pd:6+o*0.45+g()*2};
+  else if(p.pos==='K'){const a=28+g()*4;s={fga:a,fgm:a*clamp(0.8+o*0.006+g()*0.03,0.6,0.98)};}
+  const out={};for(const k in s){const v=s[k]*(p.pos==='K'?share:f);out[k]=k==='sk'?Math.max(0,r1(v)):nn(v);}return out;}
+const STATK=['att','cmp','py','ptd','pint','car','ry','td','rec','recy','tk','sk','int','pd','fga','fgm','fum','fr'];
+function seasonStats(T,p){const real=T.id===S.user?S.pst[p.id]:null,played=T.id===S.user?(S.gpU||0):0,share=clamp((17-played)/17,0,1),m=modelStats(p,T,share),out={};
+  for(const k of STATK){const v=(m[k]||0)+(real&&real[k]?real[k]:0)+(k==='td'&&real?(real.ptd?0:0):0);if(v)out[k]=k==='sk'?r1(v):Math.round(v);}
+  if(p.pos==='QB'&&real){out.td=out.td||0;}return out;}
+const REC_KEYS=[['py','Passing yards','QB'],['ptd','Passing touchdowns','QB'],['ry','Rushing yards','RB'],['recy','Receiving yards',''],['rec','Catches',''],['sk','Sacks',''],['int','Interceptions',''],['tk','Tackles','']];
+function careerOf(p){const c={};for(const h of p.hist||[])for(const k in h.s)c[k]=(c[k]||0)+h.s[k];if(c.sk)c.sk=r1(c.sk);return c;}
+// Writes every player's season into his history and updates league records.
+function recordSeason(){const yr=S.season;S.rec=S.rec||{s:{},c:{}};S.rec.s=S.rec.s||{};S.rec.c=S.rec.c||{};
+  for(const T of S.teams)for(const p of T.roster){const s=seasonStats(T,p);p.ss=s;p.hist=(p.hist||[]).concat({y:yr,t:T.abbr,o:p.ovr,s}).slice(-20);
+    for(const [k] of REC_KEYS){const v=s[k]||0,cur=S.rec.s[k];if(v>0&&(!cur||v>cur.v))S.rec.s[k]={v,n:p.n,pos:p.pos,t:T.abbr,y:yr};
+      const cv=careerOf(p)[k]||0,cc=S.rec.c[k];if(cv>0&&(!cc||cv>cc.v))S.rec.c[k]={v:cv,n:p.n,pos:p.pos,t:T.abbr,y:yr};}}}
+function careerLine(p){const c=careerOf(p),f=x=>Math.round(x).toLocaleString('en-US'),n=(p.hist||[]).length;let s;
+  if(p.pos==='QB')s=f(c.py||0)+' passing yards, '+(c.ptd||0)+' touchdowns';else if(p.pos==='RB')s=f(c.ry||0)+' rushing yards, '+(c.td||0)+' touchdowns';
+  else if(p.pos==='WR'||p.pos==='TE')s=(c.rec||0)+' catches, '+f(c.recy||0)+' yards';else if(p.pos==='DL')s=(c.sk||0)+' sacks';else if(p.pos==='LB')s=f(c.tk||0)+' tackles, '+(c.sk||0)+' sacks';
+  else if(p.pos==='CB'||p.pos==='S')s=(c.int||0)+' interceptions';else if(p.pos==='K')s=(c.fgm||0)+' field goals';else s='anchored the line';
+  return s+(n?' in '+n+(n===1?' season':' seasons')+' tracked':'');}
+function hofScore(p){let sc=p.leg||0;for(const a of p.aw||[]){if(/MVP/.test(a))sc+=4;else if(/Player of the Year/.test(a))sc+=3;else if(/Rookie/.test(a))sc+=1;else if(/All-Pro/.test(a))sc+=0.75;}
+  const c=careerOf(p),n=(p.hist||[]).length,pk=Math.max(p.ovr,...(p.hist||[]).map(h=>h.o));
+  if(p.pos==='QB'){if((c.py||0)>=45000)sc+=3;if((c.ptd||0)>=320)sc+=2;}else if(p.pos==='RB'){if((c.ry||0)>=10000)sc+=3;}else if(p.pos==='WR'){if((c.recy||0)>=11000)sc+=3;}
+  else if(p.pos==='TE'){if((c.recy||0)>=8000)sc+=3;}else if(p.pos==='DL'){if((c.sk||0)>=110)sc+=3;}else if(p.pos==='LB'){if((c.tk||0)>=1300)sc+=2;}else if(p.pos==='CB'||p.pos==='S'){if((c.int||0)>=50)sc+=3;}
+  if(n>=10)sc+=1;if(pk>=93)sc+=2;return sc;}
+function retireCheck(T,p){S.hof=S.hof||[];if(hofScore(p)<12)return;const yrs=(p.hist||[]).map(h=>h.y),teams=[...new Set((p.hist||[]).map(h=>h.t).concat(T.abbr))];
+  S.hof.unshift({n:p.n,pos:p.pos,y:S.season+1,yrs:yrs.length?Math.min(...yrs)+'–'+Math.max(...yrs):'',teams,line:careerLine(p),aw:(p.aw||[]).length,user:T.id===S.user});
+  S.news.unshift(p.n+' ('+p.pos+') retired and goes into the Hall of Fame.');}
+// ===== practice drills: each one pays training points once per week =====
+const drillKey=()=>S.season+'-'+S.phase+'-'+S.week;
+function drillDone(kind){return !!(S.drill&&S.drill.key===drillKey()&&S.drill.done[kind]);}
+function drillReward(kind,tp){if(drillDone(kind))return 0;if(!S.drill||S.drill.key!==drillKey())S.drill={key:drillKey(),done:{}};S.drill.done[kind]=true;S.tp+=tp;save();return tp;}
 // ===== captains and the kick returner =====
 function toggleCaptain(p){const U=S.teams[S.user];if(p.cap){p.cap=false;save();return '';}if(U.roster.filter(x=>x.cap).length>=4)return 'You already have 4 captains. Remove one first.';p.cap=true;save();return '';}
 function setReturner(p){for(const x of S.teams[S.user].roster)x.kr=false;p.kr=true;save();}
@@ -238,7 +293,7 @@ function draftOrder(){const rank=S.teams.slice().sort(cmpTeams).reverse().map(t=
   return S.picks.filter(k=>k.yr===S.season+1).sort((a,b)=>a.rd-b.rd||rank.indexOf(a.orig)-rank.indexOf(b.orig)).map(k=>k.id);}
 function startDraft(){S.offer=null;
   for(const T of S.teams){const keep=[];
-    for(const p of T.roster){if(agePlayer(p)){if(T.id===S.user)S.news.unshift(p.n+' ('+p.pos+', '+p.ovr+') retired.');}else{checkXF(T,p);keep.push(p);}}
+    for(const p of T.roster){if(agePlayer(p)){if(T.id===S.user)S.news.unshift(p.n+' ('+p.pos+', '+p.ovr+') retired.');retireCheck(T,p);}else{checkXF(T,p);keep.push(p);}}
     T.roster=keep;
     // some veterans hit the open market
     if(T.id!==S.user&&Math.random()<0.45){const c=T.roster.filter(p=>p.age>=28&&p.ovr>=70&&!(p.pos==='QB'&&isStarter(T,p))&&T.roster.filter(x=>x.pos===p.pos).length>START_N[p.pos]);if(c.length){const p=pick(c);T.roster.splice(T.roster.indexOf(p),1);toFA(p);}}}
@@ -278,7 +333,7 @@ function newSeason(){const U=S.teams[S.user];if(U.roster.length>ROSTER_MAX)retur
   if(S.po)computeRanks(true);
   aiSignings(2);trimFA();   // the user gets first look at free agents during the preseason
   for(const T of S.teams){T.w=T.l=T.pf=T.pa=0;}
-  S.season++;S.week=0;S.phase='regular';S.po=null;S.pst={};S.schedule=makeSchedule(S.season);S.offer=null;S.champ=null;S.last='';save();return true;}
+  S.season++;S.week=0;S.phase='regular';S.po=null;S.pst={};S.gpU=0;for(const T of S.teams)for(const p of T.roster)delete p.ss;S.schedule=makeSchedule(S.season);S.offer=null;S.champ=null;S.last='';save();return true;}
 
 // ===== player management =====
 function upgradeCost(p){if(p.ovr>=99)return 0;const b=p.ovr<75?1:p.ovr<85?2:p.ovr<92?3:4;return Math.max(1,b-(p.dev==='F'?1:0)-((p.dev==='F'||p.dev==='E')&&b>=3?1:0));}
