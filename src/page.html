@@ -212,6 +212,10 @@ label{color:var(--muted);font-size:13px}
 #intro.pop{animation:introIn .45s cubic-bezier(.2,.8,.2,1)}
 @keyframes introIn{from{opacity:0;transform:translateX(-24px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){#intro.pop{animation:none}}
+.skins{display:inline-flex;flex-wrap:wrap;gap:6px}
+.skin{width:26px;height:26px;border-radius:50%;background:var(--c);border:2px solid var(--line);padding:0;cursor:pointer}
+.skin.on{border-color:var(--chalk);box-shadow:0 0 0 2px var(--chalk)}
+.skin:focus-visible{outline:2px solid var(--chalk);outline-offset:2px}
 </style>
 <div id="app">
   <header id="top"></header>

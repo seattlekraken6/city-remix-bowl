@@ -125,6 +125,7 @@ function editor(U){const p=byId(U,UI.sel);if(!p){UI.sel=null;return '';}const c=
   ${p.xf?`<p><span class="xf">X</span> <b>${xfName(p)}.</b> ${xfDesc(p)}</p>`:`<p class="muted">Earns an X-Factor at ${XF_OVR} overall (one of ${XFS[p.pos].map(x=>x[1]).join(', ')}).</p>`}
   ${p.aw&&p.aw.length?`<p><b>Awards:</b> ${p.aw.slice(-6).map(esc).join(' · ')}</p>`:''}${p.cap?'<p><span class="tag cap">C</span> Team captain: plays 2 points above his rating.</p>':''}${p.inj?'<p><span class="tag inj">Injured</span> Out '+p.inj+(p.inj===1?' more week. A healthy backup starts in his place.':' more weeks. A healthy backup starts in his place.')+'</p>':''}
   ${careerTable(p)}
+  <div class="row"><span class="muted">Skin tone</span>${skinPick(skinIx(p),'edSkin')}</div>
   <div class="row"><label for="edName">Name</label><input id="edName" value="${esc(p.n)}" maxlength="22" autocomplete="off"><label for="edNum">Number</label><input id="edNum" type="number" min="0" max="99" value="${p.num}" inputmode="numeric"><button class="btn sm" data-a="edSave">Save</button></div>
   <div class="row"><button class="btn sm" data-a="edUp"${c&&S.tp>=c?'':' disabled'}>${c?'Upgrade +1 overall ('+c+' point'+(c>1?'s':'')+')':'Maxed out'}</button><button class="btn ghost sm" data-a="edCap">${p.cap?'Remove captain':'Make captain'}</button>${['RB','WR','CB','S'].includes(p.pos)?`<button class="btn ghost sm" data-a="edKr"${p.kr?' disabled':''}>${p.kr?'Kick returner':'Set as kick returner'}</button>`:''}<button class="btn ghost sm" data-a="edRel">Release</button><button class="btn ghost sm" data-a="edClose">Close</button>${UI.edMsg?`<span class="${UI.edOk?'good':'bad'}">${esc(UI.edMsg)}</span>`:''}</div></section>`;}
 function vRoster(){const U=S.teams[S.user],fa=UI.rv==='fa';
@@ -273,6 +274,9 @@ const ACT={
   sign(d){const p=S.fa.find(x=>x.id===+d.id);if(!p)return;const e=signFA(p);UI.faMsg=e||'Signed '+p.n+'.';UI.faOk=!e;render();},
   sel(d){UI.sel=+d.id;UI.edMsg='';render();$('#view').scrollTop=0;},
   edClose(){UI.sel=null;UI.edMsg='';render();},
+  edSkin(d){const p=byId(S.teams[S.user],UI.sel);if(!p)return;p.sk=+d.k;save();render();},
+  pnSkin(d){pnRead();UI.pn.sk=+d.k;render();},
+  proSkin(d){const p=proP();if(!p)return;p.sk=+d.k;save();render();},
   edSave(){const p=byId(S.teams[S.user],UI.sel);if(!p)return;const e=editPlayer(p,$('#edName').value,$('#edNum').value);UI.edMsg=e||'Saved.';UI.edOk=!e;render();},
   edUp(){const p=byId(S.teams[S.user],UI.sel);if(!p)return;const e=upgradePlayer(p);UI.edMsg=e||'Upgraded to '+p.ovr+' overall.';UI.edOk=!e;render();},
   edRel(){const p=byId(S.teams[S.user],UI.sel);if(!p)return;if(UI.relId!==p.id){UI.relId=p.id;UI.edMsg='Tap Release again to let him go to free agency.';UI.edOk=false;render();return;}
@@ -303,7 +307,7 @@ const ACT={
   toFr(){save();UI.tab='home';UI.proNew=false;UI.proMsg='';if(!load('f'))S=null;render();$('#view').scrollTop=0;},
   pnOpen(){UI.proNew=true;render();$('#view').scrollTop=0;},pnBack(){UI.proNew=false;if(hasSave(KEYP)&&load('p')){}else if(!load('f'))S=null;render();},
   pnPos(d){pnRead();UI.pn.pos=d.k;render();},
-  pnGo(){pnRead();const P=UI.pn;if(P.start==='nfl')newPro(P.n,P.pos,P.num===''?-1:+P.num,+P.t);else newRoadPro(P.n,P.pos,P.num===''?-1:+P.num,P.hs);UI.proNew=false;UI.tab='home';UI.proMsg='';render();$('#view').scrollTop=0;},
+  pnGo(){pnRead();const P=UI.pn,_sk=P.sk;if(P.start==='nfl')newPro(P.n,P.pos,P.num===''?-1:+P.num,+P.t);else newRoadPro(P.n,P.pos,P.num===''?-1:+P.num,P.hs);{const q=proP();if(q)q.sk=_sk;save();}UI.proNew=false;UI.tab='home';UI.proMsg='';render();$('#view').scrollTop=0;},
   proUp(d){const e=proUpgrade(d.k);const p=proP();UI.proMsg=e||(d.k==='spd'?'Speed is now '+p.spd+'.':'You are now '+p.ovr+' overall.');UI.proOk=!e;render();},
   proAdv(){proAdvance();UI.proMsg='';render();$('#view').scrollTop=0;},
   proRet(){if(!UI.confirmRet){UI.confirmRet=true;render();return;}UI.confirmRet=false;proRetire(false);render();$('#view').scrollTop=0;},
@@ -324,7 +328,8 @@ initInput();load();render();
 try{if(window.speechSynthesis)speechSynthesis.addEventListener('voiceschanged',()=>{voices=null;const a=document.activeElement;if(!gm&&S&&S.user>=0&&UI.tab==='home'&&!UI.setup&&!(a&&/SELECT|INPUT/.test(a.tagName)))render();});}catch(e){}
 
 // ===== Be a Pro screens =====
-const pnDef=()=>UI.pn||(UI.pn={n:'',pos:'WR',num:'',t:-1,start:'hs',hs:''});
+function pnDef(){return UI.pn||(UI.pn={n:'',pos:'WR',num:'',t:-1,start:'hs',hs:'',sk:4});}
+function skinPick(cur,act){return '<span class="skins" role="radiogroup" aria-label="Skin tone">'+SKINS.map((c,i)=>`<button class="skin${i===cur?' on':''}" style="--c:${c}" data-a="${act}" data-k="${i}" role="radio" aria-checked="${i===cur}" aria-label="Tone ${i+1} of 10"></button>`).join('')+'</span>';}
 function pnRead(){const P=pnDef(),a=$('#pnName'),b=$('#pnNum'),c=$('#pnTeam'),d=$('#pnHS');if(a)P.n=a.value;if(b)P.num=b.value;if(c)P.t=+c.value;if(d)P.hs=d.value;}
 function proCard(){const has=hasSave(KEYP);return `<section class="card"><p class="eyebrow">Be a Pro</p><h3>Play one player's career</h3><p class="muted">Create a rookie and play only his snaps. The coach calls the plays, you make them. Earn XP each game, spend skill points to get better, and chase the Hall of Fame.</p><div class="row"><button class="btn${S&&S.user>=0?' ghost':''}" data-a="${has||S&&S.user>=0?'toPro':'pnOpen'}">${has?'Continue your career':'Create a player'}</button></div></section>`;}
 function proNewCard(){const P=pnDef(),teams=S.teams.slice().sort((a,b)=>a.name.localeCompare(b.name));
@@ -333,6 +338,7 @@ function proNewCard(){const P=pnDef(),teams=S.teams.slice().sort((a,b)=>a.name.l
   <section class="card"><h3>Your position</h3><div class="posgrid">${PRO_POS.map(([k,n,d])=>`<button class="posb${P.pos===k?' on':''}" data-a="pnPos" data-k="${k}" aria-pressed="${P.pos===k}"><b>${n}</b><small>${d}</small></button>`).join('')}</div></section>
   <section class="card"><h3>Your player</h3><div class="pform"><label><span>Name</span><input id="pnName" maxlength="22" autocomplete="off" placeholder="First and last name" value="${esc(P.n)}"></label><label><span>Number</span><input id="pnNum" type="number" min="0" max="99" inputmode="numeric" placeholder="Any" value="${esc(P.num)}"></label>
   ${P.start==='nfl'?`<label><span>Team</span><select id="pnTeam"><option value="-1">Let the draft decide</option>${teams.map(T=>`<option value="${T.id}"${P.t===T.id?' selected':''}>${T.name}</option>`).join('')}</select></label>`:`<label><span>High school</span><input id="pnHS" maxlength="24" autocomplete="off" placeholder="Any name, like Lincoln" value="${esc(P.hs)}"></label>`}</div>
+  <div class="row"><span class="muted">Skin tone</span>${skinPick(P.sk,'pnSkin')}</div>
   <p class="muted">${P.start==='nfl'?'You start as a 21-year-old rookie, about 70 overall, and you start every game. If the draft decides, one of the weaker teams picks you in the first round.':'You start as a 17-year-old senior, about 56 overall, and you start every game. Play well for scholarship offers, pick your college, and after your junior or senior year, declare for the NFL Draft.'}</p>
   <div class="row"><button class="btn" data-a="pnGo">Start your career</button><button class="btn ghost" data-a="${hasSave(KEY)||hasSave(KEYP)?'pnBack':'pnBack'}">Back</button></div></section>`;}
 function proSettingsRow(){const sel=(id,lab,opts,cur)=>`<span class="setp"><label for="${id}">${lab}</label><select id="${id}">${opts.map((o,i)=>`<option value="${i}"${cur===i?' selected':''}>${o}</option>`).join('')}</select></span>`;
@@ -345,7 +351,7 @@ function renderPro(){if(onRoad())return renderRoad();const p=proP(),P=S.pro,T=S.
 function proPlayerCard(p){const P=S.pro,c=proCost(p),cs=proSpdCost(p),pct=Math.round(P.xp/PRO_XP*100);
   return `<section class="card procard"><div class="pc-top"><div class="pc-num">${p.num}</div><div><h3>${esc(p.n)}</h3><p class="muted">${PRO_POS.find(x=>x[0]===p.pos)[1]} · age ${p.age} · ${devTag(p)} potential${p.xf?` · <span class="xf">X</span> ${xfName(p)}`:''}</p></div></div>
   <div class="pc-stats"><div><b>${p.ovr}</b><small>Overall</small></div><div><b>${p.spd}</b><small>Speed</small></div><div><b>${P.sp}</b><small>Skill points</small></div><div><b>${P.games}</b><small>Games</small></div></div>
-  <div class="xpbar" role="progressbar" aria-valuemin="0" aria-valuemax="${PRO_XP}" aria-valuenow="${P.xp}" aria-label="XP toward the next skill point"><span style="width:${pct}%"></span></div><p class="muted">${P.xp} of ${PRO_XP} XP to the next skill point.</p>
+  <div class="xpbar" role="progressbar" aria-valuemin="0" aria-valuemax="${PRO_XP}" aria-valuenow="${P.xp}" aria-label="XP toward the next skill point"><span style="width:${pct}%"></span></div><p class="muted">${P.xp} of ${PRO_XP} XP to the next skill point.</p>${P.done?'':`<div class="row"><span class="muted">Skin tone</span>${skinPick(skinIx(p),'proSkin')}</div>`}
   ${P.done?'':`<div class="row"><button class="btn sm" data-a="proUp" data-k="ovr"${c&&P.sp>=c?'':' disabled'}>${c?'+1 overall ('+c+' pt'+(c>1?'s':'')+')':'Overall maxed'}</button><button class="btn ghost sm" data-a="proUp" data-k="spd"${cs&&P.sp>=cs?'':' disabled'}>${cs?'+1 speed ('+cs+' pt'+(cs>1?'s':'')+')':'Speed maxed'}</button>${UI.proMsg?`<span class="${UI.proOk?'good':'bad'}">${esc(UI.proMsg)}</span>`:''}</div>`}${proXFBlock(p)}</section>`;}
 function vPro(){const p=proP(),P=S.pro,T=S.teams[S.user],r=ratings(T);let h='<div class="wrap">';
   if(P.done){const d=P.done,c=careerLine(d);
@@ -397,7 +403,7 @@ function renderRoad(){const R=S.road,p=proP(),T=R.team;S.pro.xfs=S.pro.xfs||[];
   if(!['home','team'].includes(UI.tab))UI.tab='home';$('#tabs').hidden=false;
   $('#tabs').innerHTML=[['home','Career'],['team','Team']].map(t=>`<button data-a="tab" data-t="${t[0]}" class="${UI.tab===t[0]?'on':''}">${t[1]}</button>`).join('');
   (UI.tab==='team'?vProTeam:vRoad)();}
-const stars=n=>'<span class="stars" aria-label="'+n+' stars">'+'★'.repeat(n)+'<span>'+'★'.repeat(5-n)+'</span></span>';
+function stars(n){return '<span class="stars" aria-label="'+n+' stars">'+'★'.repeat(n)+'<span>'+'★'.repeat(5-n)+'</span></span>';}
 function vRoad(){const R=S.road,p=proP(),T=R.team,P=S.pro,m=roadMatch(),hs=R.stage==='hs';let h='<div class="wrap">';
   if(m){h+=`<section class="card hero"><p class="eyebrow">${esc(roadLabel())} · ${esc(m.lab)} · ${m.home?'Home':'Away'}</p><div class="match">${teamBlock(T,ratings(T))}<span class="vs">${m.home?'vs':'at'}</span>${teamBlock(m.opp,ratings(m.opp))}</div>
     <p class="eyebrow">Game goals · 50 XP each</p><ul class="news goals">${(P.goals||[]).map(g=>`<li>${esc(g.t)}</li>`).join('')}</ul>

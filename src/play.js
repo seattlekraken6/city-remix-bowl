@@ -1,6 +1,8 @@
 // ===== the match =====
 const QLEN=240; // default; each game uses gm.QL from the quarter-length setting
-const SKINS=['#f0c7a2','#d8a374','#b87a50','#8e5a3a','#6c4327','#52331f'];
+// Ten skin tones, light to deep. A player keeps his tone (p.sk); older saves map onto the nearest of these.
+const SKINS=['#f6d8bf','#ecc29f','#e0ad84','#cc956b','#b47c54','#9a6443','#7f4f33','#683f28','#52301e','#3d2316'];
+const SK_OLD=[1,3,4,6,7,8],skinIx=rp=>rp&&rp.sk!=null?clamp(rp.sk,0,9):SK_OLD[((rp&&rp.id)||0)%6],skinOf=rp=>SKINS[skinIx(rp)];
 // Formations: where each skill player lines up, as [x from the ball, z from the line, stance].
 const FORMS={
  gun:{n:'Shotgun',QB:[0,-5],RB:[1.9,-5.3],TE:[4.5,-0.7,'s3'],WR1:[-19,-0.6],WR2:[19,-1],WR3:[-9.5,-1]},
@@ -94,7 +96,7 @@ function lineup(T){const s=p=>starters(T,p).map(x=>x.cap?Object.assign({},x,{ovr
   return {RB2:rb2,QB:s('QB')[0],RB:s('RB')[0],WR:s('WR'),TE:s('TE')[0],OL:s('OL'),K:s('K')[0],DL:s('DL'),LB:s('LB'),CB:s('CB'),S:s('S')};}
 function jerseyName(n){n=String(n).trim();const w=n.split(/\s+/);return (w.length>1&&w[w.length-1].length>2?w[w.length-1]:n).toUpperCase().slice(0,11);}
 function mkEnt(side,team,role,rp,x,z,kit,stance){const zs=gm.zone[rp.id],zone=!!rp.xf&&(rp.pos==='OL'||rp.pos==='K'||!!(zs&&zs.on));
-  return {side,team,role,rp,x,z:Math.min(z,108),y:0,vy:0,vx:0,vz:0,dir:side==='O'?0:Math.PI,pdir:0,max:(5.2+(rp.spd-50)*0.07)*(zone&&XF_SPD[xfKey(rp)]||1)*(gm.wx&&gm.wx.sky==='snow'?0.95:gm.wx&&gm.wx.sky==='rain'?0.98:1),kit,skin:SKINS[rp.id%SKINS.length],num:String(rp.num),nm:jerseyName(rp.n),cap:!!rp.cap,zone,
+  return {side,team,role,rp,x,z:Math.min(z,108),y:0,vy:0,vx:0,vz:0,dir:side==='O'?0:Math.PI,pdir:0,max:(5.2+(rp.spd-50)*0.07)*(zone&&XF_SPD[xfKey(rp)]||1)*(gm.wx&&gm.wx.sky==='snow'?0.95:gm.wx&&gm.wx.sky==='rain'?0.98:1),kit,skin:skinOf(rp),num:String(rp.num),nm:jerseyName(rp.n),cap:!!rp.cap,zone,
   pose:{lean:0,lTh:0,rTh:0,lKn:0,rKn:0,lArm:0,rArm:0,lEl:0,rEl:0,fall:0,hop:0,spread:0.12,roll:0},ph:Math.random()*6,anim:'idle',animT:0,stance,down:false,stun:0,eng:null,engT:0,shedAt:0,freeUntil:0,tklCd:0,fallDir:1,fallAmt:1,rollT:0,spl:null,
   face:null,route:null,wp:0,cutT:-9,blk:null,beat:0,juke:0,jukeCd:0,slow:0,stumble:0,cover:null,cush:0,lag:0.2,react:0.25,blitz:false,crash:false,dbl:false,zn:null,dz:null,bite:0,lunge:0,lx:0,lz:0,drag:null,wrap:null,brk:false,key:0,sx:null,sy:0,R:null,hip:1};}
 

@@ -185,7 +185,7 @@ function drawWeather(g){const w=g.wx;if(!w||w.indoor||w.sky==='clear')return;con
   if(w.sky==='rain'){ctx.strokeStyle='rgba(215,228,240,.5)';ctx.lineWidth=1.5*DPR;ctx.beginPath();for(let i=0;i<n;i++){const a=(i*0.61803)%1,b=(i*0.7548)%1,y=((b+t*1.6)%1)*H,x=((a+t*dx*0.004)%1+1)%1*W,l=16*DPR;ctx.moveTo(x,y);ctx.lineTo(x+dx*0.6*DPR,y+l);}ctx.stroke();}
   else{ctx.fillStyle='rgba(255,255,255,.85)';for(let i=0;i<n;i++){const a=(i*0.61803)%1,b=(i*0.7548)%1,s=(1+(i%3))*DPR,y=((b+t*(0.12+(i%3)*0.05))%1)*H,x=(((a+Math.sin(t*1.3+i)*0.01+t*dx*0.002)%1)+1)%1*W;ctx.fillRect(x,y,s,s);}}}
 // The rest of each roster stands on its sideline between the 30s, with a bench behind them.
-function drawSidelines(g){if(!g.side){g.side=[];for(const s of [-1,1])for(let i=0;i<17;i++)g.side.push({s,x:s*(29.3+Math.random()*1.9),z:31+i*2.3+rnd(-0.7,0.7),hel:Math.random()<0.6,sk:SKINS[(i*7+(s>0?3:0))%SKINS.length],r:rnd(-0.5,0.5)});}
+function drawSidelines(g){if(!g.side){g.side=[];for(const s of [-1,1])for(let i=0;i<17;i++)g.side.push({s,x:s*(29.3+Math.random()*1.9),z:31+i*2.3+rnd(-0.7,0.7),hel:Math.random()<0.6,sk:SKINS[(i*3+(s>0?5:0))%SKINS.length],r:rnd(-0.5,0.5)});}
   for(const s of [-1,1])gquad(RX(s*31.6),RZ(31),RX(s*32.6),RZ(70),'#1c2127');
   for(const f of g.side){const k=f.s<0?g.kitU:g.kitO,d=cam.yaw?toCam(RX(f.x),1,RZ(f.z))[2]:RZ(f.z)-cam.z;if(d<1.5||d>110)continue;const M=mMul(mT(RX(f.x),0,RZ(f.z)),mRY((RX(f.x)<0?1.5708:-1.5708)+f.r));
     addBox(M,-0.09,0.42,0,0.075,0.42,0.08,k.pants);addBox(M,0.09,0.42,0,0.075,0.42,0.08,k.pants);addBox(M,0,1.12,0,0.24,0.33,0.15,k.jersey);addBox(M,0,1.5,0,0.3,0.06,0.17,k.pads);
