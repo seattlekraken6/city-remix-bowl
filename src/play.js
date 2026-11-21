@@ -214,7 +214,7 @@ function control(e,dt,mode){const [ix0,iz0,l]=userInput(e.team);let ix=ix0,iz=iz
 function juke(team){team=team||'U';const c=gm&&gm.carrier;if(!c||gm.pro&&c.rp.id!==gm.pro.id||gm.phase!=='live'||c.team!==team||gm.mode!=='run'||c.jukeCd>gm.t||c.drag)return;c.juke=gm.t+0.34;c.jukeCd=gm.t+(zx(c,'ankle')?1.1:2.2);
   const ix=gm.two?(team==='A'?inp.p2x:inp.p1x+inp.sx):inp.kx+inp.sx;c.vx+=(ix>0.2?1:ix<-0.2?-1:(Math.random()<0.5?1:-1))*8;}
 function blockDur(b,d){const diff=(b.rp.ovr-d.rp.ovr)/55;let base;const pp=gm.play.t==='pass'&&gm.mode==='pocket';
-  if(pp&&isOL(b))base=(b.team==='U'?3.4:2.7)+Math.random()*2.6+(d.dbl?0.9:0);
+  if(pp&&isOL(b))base=(b.team==='U'?2.5:2.1)+Math.random()*2.0+(d.dbl?0.8:0);
   else if(d.role[0]!=='D')base=0.5+Math.random()*0.8;else if(isOL(b))base=1.0+Math.random()*1.5;else base=0.8+Math.random()*1.0;
   base*=1+(b.team==='U'?-0.1:0.1)*dk();let dur=Math.max(0.5,base*(1+diff));
   if(pp&&zx(b,'anchor'))dur=Math.max(dur,3.5);else if(zx(b,'anchor'))dur*=1.3;if(!pp&&zx(b,'grader'))dur*=2;if(zx(b,'mauler'))dur*=1.45;if(zx(b,'wall'))dur*=1.8;
@@ -405,11 +405,11 @@ function stepLive(dt){if(gm.ret)return stepRet(dt);if(gm.loose)return stepLoose(
     if(d.stun>t){accel(d,0,0,dt);continue;}
     if(d.wrap){const w=d.wrap;seek(d,w.x,w.z,w.max*0.5,dt);d.anim='block';d.face=w;continue;}
     if(d.eng){if(t>=d.shedAt||d.eng.down){if(d.xfShed&&t<d.engT+1.1){d.xfShed=false;flash('Unstoppable! '+d.rp.n+' beats the block');}d.eng.beat=t+1.2;d.eng=null;d.freeUntil=t+3;}
-      else{const g=car||qb,bl=d.eng;if(run&&!gm.scr&&isOL(bl)&&g.z<d.z+1)accel(d,(d.x>=hx?1:-1)*0.9,1.5+(bl.rp.ovr-d.rp.ovr)*0.02,dt);else seek(d,g.x,g.z,(isOL(bl)||bl.role==='TE')?0.9+(d.rp.ovr-70)*0.02:d.max*0.5,dt);
+      else{const g=car||qb,bl=d.eng;if(run&&!gm.scr&&isOL(bl)&&g.z<d.z+1)accel(d,(d.x>=hx?1:-1)*0.9,1.5+(bl.rp.ovr-d.rp.ovr)*0.02,dt);else seek(d,g.x,g.z,(isOL(bl)||bl.role==='TE')?(run?0.9:1.3)+(d.rp.ovr-70)*0.025:d.max*0.55,dt);
         d.anim='block';d.face=bl;if(mode==='run'&&car)tryTackle(d,car);if(gm.phase!=='live')return;continue;}}
     d.anim='idle';const rusher=d.role[0]==='D'||d.blitz||(d.crash&&(run||t<0.9));
     if(mode==='pocket'){
-      if(rusher){seek(d,qb.x,qb.z,d.max*(d.blitz?(uo?0.62+0.08*dk():0.9):uo?0.9:0.95),dt);tryTackle(d,qb);}
+      if(rusher){seek(d,qb.x,qb.z,d.max*(d.blitz?(uo?0.8+0.06*dk():0.97):uo?0.97:1),dt);tryTackle(d,qb);}
       else if(d.bite>t){seek(d,d.x,los+2,d.max*0.55,dt);d.face=qb;}
       else if(d.cover)cover(d,dt);else if(d.dz)deepZone(d,dt);else if(d.zn)zoneCover(d,dt);else{seek(d,d.x,los+4.5,d.max*0.6,dt);d.face=qb;}}
     else if(mode==='air'){const near=Math.hypot(d.x-b.land.x,d.z-b.land.z),hawk=zx(d,'hawk')||zx(d,'lurker');
