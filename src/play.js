@@ -95,8 +95,12 @@ function makeKit(T,key){const U0=uniOf(T),u=U0[key]||U0.H,j=u[0],p=u[2];
 function lineup(T){const s=p=>starters(T,p).map(x=>x.cap?Object.assign({},x,{ovr:Math.min(99,x.ovr+2)}):x);const h=pos=>T.roster.filter(p=>p.pos===pos&&!p.inj).sort((a,b)=>b.ovr-a.ovr);const rb1=s('RB')[0],rb2=h('RB').filter(p=>!rb1||p.id!==rb1.id)[0]||h('TE')[1]||h('WR')[3]||rb1;
   return {RB2:rb2,QB:s('QB')[0],RB:s('RB')[0],WR:s('WR'),TE:s('TE')[0],OL:s('OL'),K:s('K')[0],DL:s('DL'),LB:s('LB'),CB:s('CB'),S:s('S')};}
 function jerseyName(n){n=String(n).trim();const w=n.split(/\s+/);return (w.length>1&&w[w.length-1].length>2?w[w.length-1]:n).toUpperCase().slice(0,11);}
+// Body types by position plus a little per player, a personal gait, and gear choices, so no two players look or move the same.
+const BODY={OL:[1.22,1.04],DL:[1.16,1.03],TE:[1.08,1.03],LB:[1.06,1.01],QB:[1.0,1.02],RB:[1.04,0.96],WR:[0.93,1.02],CB:[0.92,0.99],S:[0.96,1.0],K:[0.92,0.98],P:[0.93,1.0]};
+function looks(rp){let h=(((rp.id||1)*2654435761)>>>0);const r=()=>{h=(h*1103515245+12345)>>>0;return (h>>>8)/16777216;};const b=BODY[rp.pos]||[1,1],big=rp.pos==='OL'||rp.pos==='DL';
+  return {bw:b[0]+(r()-0.5)*0.09,bh:b[1]+(r()-0.5)*0.06,gait:0.92+r()*0.16,bp:r()*6.28,visor:!big&&r()<0.24,eb:r()<0.3,sl:r()<0.3?(r()<0.55?'#16181c':'#f2f2f2'):null,towel:!big&&rp.pos!=='K'&&r()<0.35,shoe:r()<0.5?'#f4f4f4':r()<0.8?'#16181c':null,glove:r()<0.3?'#f2f2f2':r()<0.5?'#16181c':null,cage:big||rp.pos==='LB'||rp.pos==='TE',hips:r()<0.4};}
 function mkEnt(side,team,role,rp,x,z,kit,stance){const zs=gm.zone[rp.id],zone=!!rp.xf&&(rp.pos==='OL'||rp.pos==='K'||!!(zs&&zs.on));
-  return {side,team,role,rp,x,z:Math.min(z,108),y:0,vy:0,vx:0,vz:0,dir:side==='O'?0:Math.PI,pdir:0,max:(5.2+(rp.spd-50)*0.07)*(zone&&XF_SPD[xfKey(rp)]||1)*(gm.wx&&gm.wx.sky==='snow'?0.95:gm.wx&&gm.wx.sky==='rain'?0.98:1),kit,skin:skinOf(rp),num:String(rp.num),nm:jerseyName(rp.n),cap:!!rp.cap,zone,
+  return {side,team,role,rp,x,z:Math.min(z,108),y:0,vy:0,vx:0,vz:0,dir:side==='O'?0:Math.PI,pdir:0,max:(5.2+(rp.spd-50)*0.07)*(zone&&XF_SPD[xfKey(rp)]||1)*(team==='A'&&!gm.two?1+0.012*clamp(dk(),0,2.2):1)*(gm.wx&&gm.wx.sky==='snow'?0.95:gm.wx&&gm.wx.sky==='rain'?0.98:1),kit,skin:skinOf(rp),lk:looks(rp),num:String(rp.num),nm:jerseyName(rp.n),cap:!!rp.cap,zone,
   pose:{lean:0,lTh:0,rTh:0,lKn:0,rKn:0,lArm:0,rArm:0,lEl:0,rEl:0,fall:0,hop:0,spread:0.12,roll:0},ph:Math.random()*6,anim:'idle',animT:0,stance,down:false,stun:0,eng:null,engT:0,shedAt:0,freeUntil:0,tklCd:0,fallDir:1,fallAmt:1,rollT:0,spl:null,
   face:null,route:null,wp:0,cutT:-9,blk:null,beat:0,juke:0,jukeCd:0,slow:0,stumble:0,cover:null,cush:0,lag:0.2,react:0.25,blitz:false,crash:false,dbl:false,zn:null,dz:null,bite:0,lunge:0,lx:0,lz:0,drag:null,wrap:null,brk:false,key:0,sx:null,sy:0,R:null,hip:1};}
 
@@ -178,7 +182,7 @@ function snap(){if(!gm||gm.phase!=='presnap')return;if(gm.ko){const kt=gm.poss==
   gm.hole=play.t==='run'||play.pa?{x:gm.bx+play.aim,z:los+1.5}:null;gm.ucDrop=FORMS[play.f].QB[1]>-3;if(play.sneak)by.QB.anim='carry';
   const A=DEF[gm.defCall];for(const role in A){const a=A[role],d=by[role];if(a[0]==='m')d.cover=by[a[1]];else if(a[0]==='z')d.zn=[a[1],a[2],a[3]];else if(a[0]==='d')d.dz=[a[1],a[2]];else if(a[0]==='r')d.blitz=true;else d.crash=true;}
   for(const e of gm.ents){e.react=0.3+(92-e.rp.ovr)/120;
-    if(e.cover){e.cush=e.z-e.cover.z;e.lag=zx(e,'lock')?0:clamp(0.42-e.rp.ovr/300+(uo?-0.04:0.04)*k+(zx(e.cover,'deep')?0.14:0),0.02,0.55);if(zx(e,'press'))e.cover.jam=0.9;}}
+    if(e.cover){e.cush=e.z-e.cover.z;e.lag=zx(e,'lock')?0:clamp(0.42-e.rp.ovr/300+(uo?-0.04:0.04)*Math.min(k,1.8)+(zx(e.cover,'deep')?0.14:0),0.02,0.55);if(zx(e,'press'))e.cover.jam=0.9;}}
   if(play.pa)for(const r of ['LB1','LB2','LB3','SS']){const d=by[r];if(!d.blitz&&!d.crash)d.bite=rnd(0.25,0.6)*clamp(1.3-(d.rp.ovr-60)/45,0.4,1.3);}
   by.LT.blk=by.DL1;by.LG.blk=by.DL2;by.RG.blk=by.DL3;by.RT.blk=by.DL4;
   if(play.t==='pass'){const bl=by.LB1.blitz?by.LB1:by.LB2.blitz?by.LB2:null;by.C.blk=bl||by.DL2;by.DL2.dbl=!bl;}
@@ -252,7 +256,7 @@ function tryTackle(d,c){const t=gm.t,lg=d.lunge>t;if(d.tklCd>t||c.down||dist(d,c
   const qbp=c===gm.by.QB&&gm.mode==='pocket',ball=c.rp.pos==='RB'||c.rp.pos==='TE';
   const xk=c.zone&&xfKey(c.rp),brk=qbp?xk==='escape':(xk==='wreck'||xk==='mismatch'||xk==='yac'&&gm.caught);
   if(brk&&!c.brk&&!d.eng&&!zx(d,'enforcer')&&!zx(d,'closer')){c.brk=true;d.stun=t+0.9;d.lunge=0;d.anim='dive';d.vx*=0.3;d.vz*=0.3;c.slow=t+0.1;flash(xfName(c.rp)+'! '+c.rp.n+(qbp?' slips the sack':' breaks the tackle'));return;}
-  let p=qbp?(c.team==='U'?0.72:0.88):0.75+(d.rp.ovr-c.rp.ovr)/220+(c.team==='U'?0.05:-0.05)*dk()+(c.team==='A'?0.06:0);
+  let p=qbp?(c.team==='U'?0.72:0.88):0.75+(d.rp.ovr-c.rp.ovr)/220+(c.team==='U'?0.05:-0.05)*Math.min(dk(),1.6)+(c.team==='A'?0.06:0);
   if(!qbp){const ab=xk==='ankle';if(c.juke>t)p-=ab?0.5:0.22;if(c.spin>t)p-=ab?0.55:0.3;if(c.rp.pos==='RB'&&!gm.caught)p-=0.02;}
   if(d===gm.ctl)p+=lg?0.18:0.1;if(d.eng)p*=0.2;const sure=(zx(d,'enforcer')||zx(d,'closer'))&&!d.eng;if(sure)p=0.97;
   if(Math.random()<clamp(p,0.08,0.97)){
@@ -795,7 +799,7 @@ function aiLateral(c){if(gm.two||c.team!=='A'||gm.ko||gm.ret||gm.ball.fly||(gm.l
   if(!last&&!hook)return;let nd=99;for(const d of gm.ents)if(d.side!==c.side&&!d.down)nd=Math.min(nd,dist(d,c));if(!hook&&nd>1.8)return;const L=latTargets(c);if(L.length&&Math.random()<(hook?1:0.04))lateral(c,pick(L));}
 // ----- fumbles and loose balls -----
 function fumbleCheck(c,d,big,sack){if(gm.ko||gm.conv||gm.ret||gm.loose||gm.drill&&gm.drill.kind==='kick')return false;const w=gm.wx||{};
-  let p=(sack?0.06:big?0.045:0.009)*(w.sky==='rain'?1.5:w.sky==='snow'?1.4:1)*(c.zone&&c.rp.pos==='RB'?0.3:1)*(zx(d,'strip')?4:zx(d,'hammer')?3:1)*(c.team==='U'&&!gm.two?[0.6,0.85,1,1.1][S.diff]:1);
+  let p=(sack?0.06:big?0.045:0.009)*(w.sky==='rain'?1.5:w.sky==='snow'?1.4:1)*(c.zone&&c.rp.pos==='RB'?0.3:1)*(zx(d,'strip')?4:zx(d,'hammer')?3:1)*(c.team==='U'&&!gm.two?[0.6,0.85,1,1.1,1.2][S.diff]:1);
   if(Math.random()>=p)return false;startLoose(c.x,c.z+0.4,c,d,'fum');return true;}
 function startLoose(x,z,from,forcer,why){const t=gm.t;gm.loose={why,from:from||null,forcer:forcer||null,t0:t,team:from?from.team:null};gm.carrier=null;gm.mode='loose';gm.throwing=null;
   gm.ball={loose:true,spin:true,x,y:0.8,z,vx:rnd(-3,3)+(from?from.vx*0.3:0),vz:rnd(-3,3)+(from?from.vz*0.3:0),vy:rnd(2.5,4.5)};
@@ -1032,7 +1036,7 @@ function updPose(e,dt){const p=e.pose,sp=Math.hypot(e.vx,e.vz),t=gm.t,now=gm.now
   const T={lean:0.05,lTh:0.05,rTh:0.05,lKn:0.1,rKn:0.1,lArm:0.1,rArm:0.1,lEl:0.25,rEl:0.25,fall:0,hop:0,spread:0.12,roll:0};
   const pre=ph==='presnap'||ph==='huddle'||ph==='kick'||ph==='card'||ph==='pat'||(ph==='kanim'&&!gm.kanim.launched);
   const fwd=e.vx*Math.sin(e.dir)+e.vz*Math.cos(e.dir);
-  if(sp>0.6&&!e.down){e.ph+=sp*dt*1.75;const a=Math.min(1,sp/6.5),s=Math.sin(e.ph),c=Math.cos(e.ph);
+  if(sp>0.6&&!e.down){e.ph+=sp*dt*1.75*(e.lk?e.lk.gait:1);const a=Math.min(1,sp/6.5),s=Math.sin(e.ph),c=Math.cos(e.ph);
     if(fwd<-0.8){T.lTh=s*0.45*a-0.1;T.rTh=-s*0.45*a-0.1;T.lKn=a*(0.35+0.4*Math.max(0,c));T.rKn=a*(0.35+0.4*Math.max(0,-c));T.lArm=-s*0.35;T.rArm=s*0.35;T.lEl=T.rEl=1.1;T.lean=0.12;}
     else{T.lTh=s*(0.6+0.45*a)+0.18*a;T.rTh=-s*(0.6+0.45*a)+0.18*a;T.lKn=a*(0.2+1.35*Math.max(0,c+0.25));T.rKn=a*(0.2+1.35*Math.max(0,-c+0.25));
       T.lArm=-s*(0.5+0.5*a);T.rArm=s*(0.5+0.5*a);T.lEl=T.rEl=0.5+1.05*a;T.lean=0.08+0.26*a;T.hop=Math.abs(c)*0.07*a;}
@@ -1040,6 +1044,7 @@ function updPose(e,dt){const p=e.pose,sp=Math.hypot(e.vx,e.vz),t=gm.t,now=gm.now
   else if(pre){if(e.stance==='s3'){T.lean=0.95;T.lTh=T.rTh=0.8;T.lKn=T.rKn=1.35;T.rArm=1.15;T.rEl=0;T.lArm=0.5;T.lEl=1.0;}
     else if(e.stance==='s2'){T.lean=0.32;T.lTh=T.rTh=0.38;T.lKn=T.rKn=0.62;T.lArm=T.rArm=0.25;T.lEl=T.rEl=0.9;}
     else{T.lean=0.12;T.lTh=T.rTh=0.15;T.lKn=T.rKn=0.28;T.lArm=T.rArm=0.7;T.lEl=T.rEl=1.25;}}
+  if(sp<=0.6&&!pre&&!e.down&&e.lk){const b=Math.sin(now*1.7+e.lk.bp);T.lean+=0.035*b;T.lArm+=0.05*b;T.rArm+=0.05*b;if(e.lk.hips&&ph==='dead'&&(!e.anim||e.anim==='idle')){T.lArm=T.rArm=0.25;T.lEl=T.rEl=1.9;T.spread=0.6;}}
   e.pdir=e.dir;if(e.stumble>t&&!e.down)T.lean=0.7;if(e.spin>t&&!e.down){T.lArm=1.3;T.lEl=0.5;T.lean=0.3;T.spread=0.35;}
   const an=e.anim,u=now-e.animT;
   if(an==='block'){T.lean=0.28;T.lArm=T.rArm=1.5;T.lEl=T.rEl=0.25;if(sp<=0.6){T.lTh=T.rTh=0.35;T.lKn=T.rKn=0.6;}}

@@ -35,7 +35,7 @@ const POS_SPD={QB:66,RB:86,WR:88,TE:77,OL:54,DL:66,LB:76,CB:88,S:85,K:55};
 const POS_VAL={QB:1.7,RB:0.85,WR:1.05,TE:0.8,OL:0.9,DL:1.0,LB:0.85,CB:1.0,S:0.85,K:0.3};
 const NUM_R={QB:[[1,19]],RB:[[20,39]],WR:[[80,89],[10,19]],TE:[[80,89]],OL:[[60,79]],DL:[[90,99],[50,59]],LB:[[40,59]],CB:[[20,39]],S:[[20,49]],K:[[1,9]]};
 const TRADE_DEADLINE=9,ROSTER_MAX=38,ROUNDS=3,XF_OVR=95;
-const DIFFS=['Rookie','Pro','All-Pro','Legend'];
+const DIFFS=['Rookie','Pro','All-Pro','Legend','Hall of Fame'];
 const SPEEDS=['Normal','Fast','Turbo'],SPEED_X=[1,1.25,1.5];
 const UNI_NAMES={H:'Home',A:'Away',X:'Alternate',R:'Rivalry'};
 // Potential tiers: how fast a young player improves each offseason.
@@ -96,7 +96,7 @@ const ROOF={O:'open air',C:'open air under a canopy',D:'indoors',T:'under a tran
 const stadName=T=>T.stadN||T.name.replace(/ [A-Z]$/,'')+' Stadium',uniOf=T=>T.uni||UNI[T.abbr];
 
 let S=null,NID=1;
-const dk=()=>S?[-1,0,0.7,1.4][S.diff]:0; // difficulty lean: Rookie, Pro, All-Pro, Legend
+const dk=()=>S?[-0.6,0.6,1.4,2.2,3][S.diff]||0:0; // difficulty lean: Rookie, Pro, All-Pro, Legend, Hall of Fame
 
 function numFor(pos,taken){const R=NUM_R[pos];for(let i=0;i<60;i++){const r=pick(R),n=rint(r[0],r[1]);if(!taken.has(n)){taken.add(n);return n;}}for(let n=1;n<100;n++)if(!taken.has(n)){taken.add(n);return n;}return 0;}
 const spdFor=(pos,ovr)=>clamp(Math.round(POS_SPD[pos]+(ovr-76)*0.3+rnd(-3,3)),40,99);

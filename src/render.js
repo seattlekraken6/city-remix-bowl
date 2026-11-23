@@ -26,6 +26,7 @@ function textQuad(txt,TL,TR,BL,aspect,col){const a=projW(TL[0],TL[1],TL[2]),b=pr
 
 // matrices: 3x3 row-major + translation
 function mT(x,y,z){return [1,0,0,0,1,0,0,0,1,x,y,z];}
+function mS(x,y,z){return [x,0,0,0,y,0,0,0,z,0,0,0];}
 function mRX(a){const c=Math.cos(a),s=Math.sin(a);return [1,0,0,0,c,-s,0,s,c,0,0,0];}
 function mRY(a){const c=Math.cos(a),s=Math.sin(a);return [c,0,s,0,1,0,-s,0,c,0,0,0];}
 function mRZ(a){const c=Math.cos(a),s=Math.sin(a);return [c,-s,0,s,c,0,0,0,1,0,0,0];}
@@ -57,7 +58,7 @@ function addBox(M,cx,cy,cz,hx,hy,hz,col){const P=[],Sc=[];
     faces.push({d:(s0[2]+s1[2]+s2[2]+s3[2])/4,p:[s0,s1,s2,s3],c:shade(col,br),lab:null});}}
 // A stack of 8-sided rings, bottom to top. Each ring is [y, half-width, half-depth, bevel, z-offset].
 // Bevel 0 gives a plain tapered box. Face 0 points forward (+z) and face 4 backward; those two can carry a label.
-function addPrism(M,rings,col,lab,cap){const R=[];
+function addPrism(M,rings,col,lab,cap,gloss){const R=[];
   for(const r of rings){const y=r[0],w=r[1],d=r[2],b=r[3]||0,zo=r[4]||0,L=[w-b,d,-(w-b),d,-w,d-b,-w,-(d-b),-(w-b),-d,w-b,-d,w,-(d-b),w,d-b],ring=[];
     for(let i=0;i<8;i++){const x=L[i*2],z=L[i*2+1]+zo,wx=M[0]*x+M[1]*y+M[2]*z+M[9],wy=M[3]*x+M[4]*y+M[5]*z+M[10],wz=M[6]*x+M[7]*y+M[8]*z+M[11];
       const c=toCam(wx,wy,wz);if(c[2]<NEAR)return;const k=cam.F/c[2];ring.push([wx,wy,wz,cam.cx+c[0]*k,cam.cy-c[1]*k,c[2]]);}
@@ -67,7 +68,7 @@ function addPrism(M,rings,col,lab,cap){const R=[];
       const ux=d[0]-a[0],uy=d[1]-a[1],uz=d[2]-a[2],tx=b[0]-a[0],ty=b[1]-a[1],tz=b[2]-a[2];
       let nx=uy*tz-uz*ty,ny=uz*tx-ux*tz,nz=ux*ty-uy*tx;const nl=Math.hypot(nx,ny,nz);if(nl<1e-9)continue;nx/=nl;ny/=nl;nz/=nl;
       if(((a[0]+c[0])/2-cam.x)*nx+((a[1]+c[1])/2-cam.y)*ny+((a[2]+c[2])/2-cam.z)*nz>=0)continue;
-      const br=0.6+0.4*Math.max(0,nx*LIGHT[0]+ny*LIGHT[1]+nz*LIGHT[2]),use=lab&&(i===0||i===4);
+      const lam=Math.max(0,nx*LIGHT[0]+ny*LIGHT[1]+nz*LIGHT[2]),br=gloss?0.5+0.5*lam+(lam>0.88?0.3:0):0.58+0.44*lam,use=lab&&(i===0||i===4);
       faces.push({d:(a[5]+b[5]+c[5]+d[5])/4,p:[[a[3],a[4]],[b[3],b[4]],[c[3],c[4]],[d[3],d[4]]],c:shade(col,br),lab:use?lab:null,back:i===4,lc:use?[[d[3],d[4]],[c[3],c[4]],[a[3],a[4]]]:null});}}
   if(cap){const T=R[R.length-1],nx=M[1],ny=M[4],nz=M[7];let cx=0,cy=0,cz=0,dd=0;for(const v of T){cx+=v[0];cy+=v[1];cz+=v[2];dd+=v[5];}
     if((cx/8-cam.x)*nx+(cy/8-cam.y)*ny+(cz/8-cam.z)*nz<0)faces.push({d:dd/8,p:T.map(v=>[v[3],v[4]]),c:shade(col,0.6+0.4*Math.max(0,nx*LIGHT[0]+ny*LIGHT[1]+nz*LIGHT[2])),lab:null});}}
@@ -160,23 +161,25 @@ function drawField(T){const wx=typeof gm!=='undefined'&&gm&&gm.wx||{},sn=wx.sky=
 function addPosts(z){const M=mT(0,0,z),c='#f0cf2e';addBox(M,0,1.67,0,0.1,1.67,0.1,c);addBox(M,0,3.38,0,3.14,0.09,0.09,c);addBox(M,-3.08,8.4,0,0.08,5,0.08,c);addBox(M,3.08,8.4,0,0.08,5,0.08,c);}
 
 // ===== player: tapered limbs, shaped torso and pads, rounded helmet with facemask, on a jointed skeleton =====
-function drawPlayer(e){const p=e.pose,k=e.kit;
+function drawPlayer(e){const p=e.pose,k=e.kit,L=e.lk||{bw:1,bh:1};
   const hip=Math.max(0.5*Math.cos(p.lTh)+0.5*Math.cos(p.lTh-p.lKn),0.5*Math.cos(p.rTh)+0.5*Math.cos(p.rTh-p.rKn))+0.07;
-  const R=mMul(mT(RX(e.x),(e.y||0)+p.hop+p.fall*0.22,RZ(e.z)),mMul(mRY(e.dir+(FLIP?Math.PI:0)),mMul(mRZ(p.roll),mRX(p.fall*1.5*e.fallDir))));
+  const R=mMul(mT(RX(e.x),(e.y||0)+p.hop+p.fall*0.22,RZ(e.z)),mMul(mRY(e.dir+(FLIP?Math.PI:0)),mMul(mRZ(p.roll),mMul(mRX(p.fall*1.5*e.fallDir),mS(L.bw,L.bh,L.bw)))));
   for(const s of [-1,1]){const th=s<0?p.lTh:p.rTh,kn=s<0?p.lKn:p.rKn;
     const Mt=mMul(R,mMul(mT(s*0.13,hip,0),mRX(-th)));addPrism(Mt,[[-0.5,0.08,0.085],[0,0.118,0.128]],k.pants);
-    const Ms=mMul(Mt,mMul(mT(0,-0.5,0),mRX(kn)));addPrism(Ms,[[-0.46,0.052,0.058],[-0.17,0.084,0.094],[0,0.078,0.083]],k.socks);addBox(Ms,0,-0.5,0.07,0.062,0.045,0.14,k.shoes);}
+    const Ms=mMul(Mt,mMul(mT(0,-0.5,0),mRX(kn)));addPrism(Ms,[[-0.46,0.052,0.058],[-0.17,0.084,0.094],[0,0.078,0.083]],k.socks);addBox(Ms,0,-0.5,0.07,0.062,0.045,0.14,L.shoe||k.shoes);}
   const U=mMul(R,mMul(mT(0,hip,0),mRX(p.lean)));
   addPrism(U,[[-0.1,0.17,0.118,0.04],[0.1,0.185,0.13,0.04]],k.pants);
   addPrism(U,[[0.1,0.185,0.13,0.04],[0.52,0.25,0.155,0.05]],k.jersey,{t:e.num,col:k.num,name:e.nm,cap:e.cap});
   addPrism(U,[[0.5,0.35,0.165,0.07],[0.63,0.3,0.15,0.09]],k.pads,null,true);
+  if(L.towel)addBox(U,0.09,0.02,0.15,0.045,0.12,0.008,'#f4f4f4');
   const Hd=mMul(U,mMul(mT(0,0.64,0),mRX(-p.lean*0.6)));
-  addPrism(Hd,[[0,0.125,0.145,0.055,0.01],[0.1,0.185,0.2,0.075,0.01],[0.25,0.185,0.2,0.075,0.01],[0.36,0.115,0.135,0.06,0]],k.helmet,null,true);
-  addBox(Hd,0,0.115,0.2,0.1,0.07,0.012,e.skin);addBox(Hd,0,0.075,0.228,0.115,0.011,0.011,k.mask);addBox(Hd,0,0.135,0.228,0.115,0.011,0.011,k.mask);
+  addPrism(Hd,[[0,0.125,0.145,0.055,0.01],[0.1,0.185,0.2,0.075,0.01],[0.25,0.185,0.2,0.075,0.01],[0.36,0.115,0.135,0.06,0]],k.helmet,null,true,true);
+  addBox(Hd,0,0.115,0.2,0.1,0.07,0.012,e.skin);if(L.eb)for(const s of [-1,1])addBox(Hd,s*0.045,0.142,0.214,0.028,0.01,0.004,'#121212');if(L.visor)addBox(Hd,0,0.155,0.222,0.098,0.03,0.006,'#1b2532');
+  addBox(Hd,0,0.075,0.228,0.115,0.011,0.011,k.mask);addBox(Hd,0,0.135,0.228,0.115,0.011,0.011,k.mask);if(L.cage){addBox(Hd,0,0.04,0.226,0.1,0.01,0.01,k.mask);addBox(Hd,0,0.09,0.232,0.011,0.05,0.01,k.mask);}
   addBox(Hd,0,0.366,0,0.03,0.006,0.115,k.stripe);
   for(const s of [-1,1]){const ar=s<0?p.lArm:p.rArm,el=s<0?p.lEl:p.rEl;
-    const Ma=mMul(U,mMul(mT(s*0.34,0.58,0),mMul(mRZ(s*p.spread),mRX(-ar))));addPrism(Ma,[[-0.18,0.074,0.08],[0.03,0.09,0.095]],k.sleeve);addPrism(Ma,[[-0.36,0.058,0.062],[-0.18,0.07,0.074]],e.skin);
-    const Mf=mMul(Ma,mMul(mT(0,-0.36,0),mRX(-el)));addPrism(Mf,[[-0.3,0.045,0.05],[0,0.058,0.062]],e.skin);addBox(Mf,0,-0.35,0,0.045,0.055,0.05,k.glove);}
+    const Ma=mMul(U,mMul(mT(s*0.34,0.58,0),mMul(mRZ(s*p.spread),mRX(-ar))));addPrism(Ma,[[-0.18,0.074,0.08],[0.03,0.09,0.095]],k.sleeve);addPrism(Ma,[[-0.36,0.058,0.062],[-0.18,0.07,0.074]],L.sl||e.skin);
+    const Mf=mMul(Ma,mMul(mT(0,-0.36,0),mRX(-el)));addPrism(Mf,[[-0.3,0.045,0.05],[0,0.058,0.062]],L.sl||e.skin);addBox(Mf,0,-0.35,0,0.045,0.055,0.05,L.glove||k.glove);}
   e.R=R;e.hip=hip;}
 function ring(x,z,rYd,col,lw){const s=projW(RX(x),0.02,RZ(z));if(!s)return;const r=cam.F*rYd/s[2];ctx.beginPath();ctx.ellipse(s[0],s[1],r,r*0.42,0,0,6.2832);ctx.strokeStyle=col;ctx.lineWidth=lw*DPR;ctx.stroke();}
 

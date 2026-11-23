@@ -5,7 +5,8 @@ A 3D low-poly football game that runs in the browser. One file, no dependencies.
 - Play offense and defense, or simulate defense
 - 32 city teams in real colors, four uniforms each
 - Trades with players and draft picks, a yearly draft, player upgrades
-- Four difficulty levels and X-Factor abilities
+- Five difficulty levels, from Rookie to Hall of Fame, and X-Factor abilities
+- Players with position body types, their own running style and gear (visors, eye black, arm sleeves, towels, cleats, linemen cages)
 - A broadcast crew with spoken play-by-play and captions, stadium intros, and stadiums modeled on each city's real building
 - Accept or decline penalties, captains, a chosen kick returner, and end-of-season awards
 - Coin toss, running game clock with a play clock and delay of game, three timeouts per half, and a sim-drive button

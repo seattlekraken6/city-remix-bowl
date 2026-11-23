@@ -278,7 +278,7 @@ const POS_SPD={QB:66,RB:86,WR:88,TE:77,OL:54,DL:66,LB:76,CB:88,S:85,K:55};
 const POS_VAL={QB:1.7,RB:0.85,WR:1.05,TE:0.8,OL:0.9,DL:1.0,LB:0.85,CB:1.0,S:0.85,K:0.3};
 const NUM_R={QB:[[1,19]],RB:[[20,39]],WR:[[80,89],[10,19]],TE:[[80,89]],OL:[[60,79]],DL:[[90,99],[50,59]],LB:[[40,59]],CB:[[20,39]],S:[[20,49]],K:[[1,9]]};
 const TRADE_DEADLINE=9,ROSTER_MAX=38,ROUNDS=3,XF_OVR=95;
-const DIFFS=['Rookie','Pro','All-Pro','Legend'];
+const DIFFS=['Rookie','Pro','All-Pro','Legend','Hall of Fame'];
 const SPEEDS=['Normal','Fast','Turbo'],SPEED_X=[1,1.25,1.5];
 const UNI_NAMES={H:'Home',A:'Away',X:'Alternate',R:'Rivalry'};
 // Potential tiers: how fast a young player improves each offseason.
@@ -339,7 +339,7 @@ const ROOF={O:'open air',C:'open air under a canopy',D:'indoors',T:'under a tran
 const stadName=T=>T.stadN||T.name.replace(/ [A-Z]$/,'')+' Stadium',uniOf=T=>T.uni||UNI[T.abbr];
 
 let S=null,NID=1;
-const dk=()=>S?[-1,0,0.7,1.4][S.diff]:0; // difficulty lean: Rookie, Pro, All-Pro, Legend
+const dk=()=>S?[-0.6,0.6,1.4,2.2,3][S.diff]||0:0; // difficulty lean: Rookie, Pro, All-Pro, Legend, Hall of Fame
 
 function numFor(pos,taken){const R=NUM_R[pos];for(let i=0;i<60;i++){const r=pick(R),n=rint(r[0],r[1]);if(!taken.has(n)){taken.add(n);return n;}}for(let n=1;n<100;n++)if(!taken.has(n)){taken.add(n);return n;}return 0;}
 const spdFor=(pos,ovr)=>clamp(Math.round(POS_SPD[pos]+(ovr-76)*0.3+rnd(-3,3)),40,99);
@@ -840,6 +840,7 @@ function textQuad(txt,TL,TR,BL,aspect,col){const a=projW(TL[0],TL[1],TL[2]),b=pr
 
 // matrices: 3x3 row-major + translation
 function mT(x,y,z){return [1,0,0,0,1,0,0,0,1,x,y,z];}
+function mS(x,y,z){return [x,0,0,0,y,0,0,0,z,0,0,0];}
 function mRX(a){const c=Math.cos(a),s=Math.sin(a);return [1,0,0,0,c,-s,0,s,c,0,0,0];}
 function mRY(a){const c=Math.cos(a),s=Math.sin(a);return [c,0,s,0,1,0,-s,0,c,0,0,0];}
 function mRZ(a){const c=Math.cos(a),s=Math.sin(a);return [c,-s,0,s,c,0,0,0,1,0,0,0];}
@@ -871,7 +872,7 @@ function addBox(M,cx,cy,cz,hx,hy,hz,col){const P=[],Sc=[];
     faces.push({d:(s0[2]+s1[2]+s2[2]+s3[2])/4,p:[s0,s1,s2,s3],c:shade(col,br),lab:null});}}
 // A stack of 8-sided rings, bottom to top. Each ring is [y, half-width, half-depth, bevel, z-offset].
 // Bevel 0 gives a plain tapered box. Face 0 points forward (+z) and face 4 backward; those two can carry a label.
-function addPrism(M,rings,col,lab,cap){const R=[];
+function addPrism(M,rings,col,lab,cap,gloss){const R=[];
   for(const r of rings){const y=r[0],w=r[1],d=r[2],b=r[3]||0,zo=r[4]||0,L=[w-b,d,-(w-b),d,-w,d-b,-w,-(d-b),-(w-b),-d,w-b,-d,w,-(d-b),w,d-b],ring=[];
     for(let i=0;i<8;i++){const x=L[i*2],z=L[i*2+1]+zo,wx=M[0]*x+M[1]*y+M[2]*z+M[9],wy=M[3]*x+M[4]*y+M[5]*z+M[10],wz=M[6]*x+M[7]*y+M[8]*z+M[11];
       const c=toCam(wx,wy,wz);if(c[2]<NEAR)return;const k=cam.F/c[2];ring.push([wx,wy,wz,cam.cx+c[0]*k,cam.cy-c[1]*k,c[2]]);}
@@ -881,7 +882,7 @@ function addPrism(M,rings,col,lab,cap){const R=[];
       const ux=d[0]-a[0],uy=d[1]-a[1],uz=d[2]-a[2],tx=b[0]-a[0],ty=b[1]-a[1],tz=b[2]-a[2];
       let nx=uy*tz-uz*ty,ny=uz*tx-ux*tz,nz=ux*ty-uy*tx;const nl=Math.hypot(nx,ny,nz);if(nl<1e-9)continue;nx/=nl;ny/=nl;nz/=nl;
       if(((a[0]+c[0])/2-cam.x)*nx+((a[1]+c[1])/2-cam.y)*ny+((a[2]+c[2])/2-cam.z)*nz>=0)continue;
-      const br=0.6+0.4*Math.max(0,nx*LIGHT[0]+ny*LIGHT[1]+nz*LIGHT[2]),use=lab&&(i===0||i===4);
+      const lam=Math.max(0,nx*LIGHT[0]+ny*LIGHT[1]+nz*LIGHT[2]),br=gloss?0.5+0.5*lam+(lam>0.88?0.3:0):0.58+0.44*lam,use=lab&&(i===0||i===4);
       faces.push({d:(a[5]+b[5]+c[5]+d[5])/4,p:[[a[3],a[4]],[b[3],b[4]],[c[3],c[4]],[d[3],d[4]]],c:shade(col,br),lab:use?lab:null,back:i===4,lc:use?[[d[3],d[4]],[c[3],c[4]],[a[3],a[4]]]:null});}}
   if(cap){const T=R[R.length-1],nx=M[1],ny=M[4],nz=M[7];let cx=0,cy=0,cz=0,dd=0;for(const v of T){cx+=v[0];cy+=v[1];cz+=v[2];dd+=v[5];}
     if((cx/8-cam.x)*nx+(cy/8-cam.y)*ny+(cz/8-cam.z)*nz<0)faces.push({d:dd/8,p:T.map(v=>[v[3],v[4]]),c:shade(col,0.6+0.4*Math.max(0,nx*LIGHT[0]+ny*LIGHT[1]+nz*LIGHT[2])),lab:null});}}
@@ -974,23 +975,25 @@ function drawField(T){const wx=typeof gm!=='undefined'&&gm&&gm.wx||{},sn=wx.sky=
 function addPosts(z){const M=mT(0,0,z),c='#f0cf2e';addBox(M,0,1.67,0,0.1,1.67,0.1,c);addBox(M,0,3.38,0,3.14,0.09,0.09,c);addBox(M,-3.08,8.4,0,0.08,5,0.08,c);addBox(M,3.08,8.4,0,0.08,5,0.08,c);}
 
 // ===== player: tapered limbs, shaped torso and pads, rounded helmet with facemask, on a jointed skeleton =====
-function drawPlayer(e){const p=e.pose,k=e.kit;
+function drawPlayer(e){const p=e.pose,k=e.kit,L=e.lk||{bw:1,bh:1};
   const hip=Math.max(0.5*Math.cos(p.lTh)+0.5*Math.cos(p.lTh-p.lKn),0.5*Math.cos(p.rTh)+0.5*Math.cos(p.rTh-p.rKn))+0.07;
-  const R=mMul(mT(RX(e.x),(e.y||0)+p.hop+p.fall*0.22,RZ(e.z)),mMul(mRY(e.dir+(FLIP?Math.PI:0)),mMul(mRZ(p.roll),mRX(p.fall*1.5*e.fallDir))));
+  const R=mMul(mT(RX(e.x),(e.y||0)+p.hop+p.fall*0.22,RZ(e.z)),mMul(mRY(e.dir+(FLIP?Math.PI:0)),mMul(mRZ(p.roll),mMul(mRX(p.fall*1.5*e.fallDir),mS(L.bw,L.bh,L.bw)))));
   for(const s of [-1,1]){const th=s<0?p.lTh:p.rTh,kn=s<0?p.lKn:p.rKn;
     const Mt=mMul(R,mMul(mT(s*0.13,hip,0),mRX(-th)));addPrism(Mt,[[-0.5,0.08,0.085],[0,0.118,0.128]],k.pants);
-    const Ms=mMul(Mt,mMul(mT(0,-0.5,0),mRX(kn)));addPrism(Ms,[[-0.46,0.052,0.058],[-0.17,0.084,0.094],[0,0.078,0.083]],k.socks);addBox(Ms,0,-0.5,0.07,0.062,0.045,0.14,k.shoes);}
+    const Ms=mMul(Mt,mMul(mT(0,-0.5,0),mRX(kn)));addPrism(Ms,[[-0.46,0.052,0.058],[-0.17,0.084,0.094],[0,0.078,0.083]],k.socks);addBox(Ms,0,-0.5,0.07,0.062,0.045,0.14,L.shoe||k.shoes);}
   const U=mMul(R,mMul(mT(0,hip,0),mRX(p.lean)));
   addPrism(U,[[-0.1,0.17,0.118,0.04],[0.1,0.185,0.13,0.04]],k.pants);
   addPrism(U,[[0.1,0.185,0.13,0.04],[0.52,0.25,0.155,0.05]],k.jersey,{t:e.num,col:k.num,name:e.nm,cap:e.cap});
   addPrism(U,[[0.5,0.35,0.165,0.07],[0.63,0.3,0.15,0.09]],k.pads,null,true);
+  if(L.towel)addBox(U,0.09,0.02,0.15,0.045,0.12,0.008,'#f4f4f4');
   const Hd=mMul(U,mMul(mT(0,0.64,0),mRX(-p.lean*0.6)));
-  addPrism(Hd,[[0,0.125,0.145,0.055,0.01],[0.1,0.185,0.2,0.075,0.01],[0.25,0.185,0.2,0.075,0.01],[0.36,0.115,0.135,0.06,0]],k.helmet,null,true);
-  addBox(Hd,0,0.115,0.2,0.1,0.07,0.012,e.skin);addBox(Hd,0,0.075,0.228,0.115,0.011,0.011,k.mask);addBox(Hd,0,0.135,0.228,0.115,0.011,0.011,k.mask);
+  addPrism(Hd,[[0,0.125,0.145,0.055,0.01],[0.1,0.185,0.2,0.075,0.01],[0.25,0.185,0.2,0.075,0.01],[0.36,0.115,0.135,0.06,0]],k.helmet,null,true,true);
+  addBox(Hd,0,0.115,0.2,0.1,0.07,0.012,e.skin);if(L.eb)for(const s of [-1,1])addBox(Hd,s*0.045,0.142,0.214,0.028,0.01,0.004,'#121212');if(L.visor)addBox(Hd,0,0.155,0.222,0.098,0.03,0.006,'#1b2532');
+  addBox(Hd,0,0.075,0.228,0.115,0.011,0.011,k.mask);addBox(Hd,0,0.135,0.228,0.115,0.011,0.011,k.mask);if(L.cage){addBox(Hd,0,0.04,0.226,0.1,0.01,0.01,k.mask);addBox(Hd,0,0.09,0.232,0.011,0.05,0.01,k.mask);}
   addBox(Hd,0,0.366,0,0.03,0.006,0.115,k.stripe);
   for(const s of [-1,1]){const ar=s<0?p.lArm:p.rArm,el=s<0?p.lEl:p.rEl;
-    const Ma=mMul(U,mMul(mT(s*0.34,0.58,0),mMul(mRZ(s*p.spread),mRX(-ar))));addPrism(Ma,[[-0.18,0.074,0.08],[0.03,0.09,0.095]],k.sleeve);addPrism(Ma,[[-0.36,0.058,0.062],[-0.18,0.07,0.074]],e.skin);
-    const Mf=mMul(Ma,mMul(mT(0,-0.36,0),mRX(-el)));addPrism(Mf,[[-0.3,0.045,0.05],[0,0.058,0.062]],e.skin);addBox(Mf,0,-0.35,0,0.045,0.055,0.05,k.glove);}
+    const Ma=mMul(U,mMul(mT(s*0.34,0.58,0),mMul(mRZ(s*p.spread),mRX(-ar))));addPrism(Ma,[[-0.18,0.074,0.08],[0.03,0.09,0.095]],k.sleeve);addPrism(Ma,[[-0.36,0.058,0.062],[-0.18,0.07,0.074]],L.sl||e.skin);
+    const Mf=mMul(Ma,mMul(mT(0,-0.36,0),mRX(-el)));addPrism(Mf,[[-0.3,0.045,0.05],[0,0.058,0.062]],L.sl||e.skin);addBox(Mf,0,-0.35,0,0.045,0.055,0.05,L.glove||k.glove);}
   e.R=R;e.hip=hip;}
 function ring(x,z,rYd,col,lw){const s=projW(RX(x),0.02,RZ(z));if(!s)return;const r=cam.F*rYd/s[2];ctx.beginPath();ctx.ellipse(s[0],s[1],r,r*0.42,0,0,6.2832);ctx.strokeStyle=col;ctx.lineWidth=lw*DPR;ctx.stroke();}
 
@@ -1158,8 +1161,12 @@ function makeKit(T,key){const U0=uniOf(T),u=U0[key]||U0.H,j=u[0],p=u[2];
 function lineup(T){const s=p=>starters(T,p).map(x=>x.cap?Object.assign({},x,{ovr:Math.min(99,x.ovr+2)}):x);const h=pos=>T.roster.filter(p=>p.pos===pos&&!p.inj).sort((a,b)=>b.ovr-a.ovr);const rb1=s('RB')[0],rb2=h('RB').filter(p=>!rb1||p.id!==rb1.id)[0]||h('TE')[1]||h('WR')[3]||rb1;
   return {RB2:rb2,QB:s('QB')[0],RB:s('RB')[0],WR:s('WR'),TE:s('TE')[0],OL:s('OL'),K:s('K')[0],DL:s('DL'),LB:s('LB'),CB:s('CB'),S:s('S')};}
 function jerseyName(n){n=String(n).trim();const w=n.split(/\s+/);return (w.length>1&&w[w.length-1].length>2?w[w.length-1]:n).toUpperCase().slice(0,11);}
+// Body types by position plus a little per player, a personal gait, and gear choices, so no two players look or move the same.
+const BODY={OL:[1.22,1.04],DL:[1.16,1.03],TE:[1.08,1.03],LB:[1.06,1.01],QB:[1.0,1.02],RB:[1.04,0.96],WR:[0.93,1.02],CB:[0.92,0.99],S:[0.96,1.0],K:[0.92,0.98],P:[0.93,1.0]};
+function looks(rp){let h=(((rp.id||1)*2654435761)>>>0);const r=()=>{h=(h*1103515245+12345)>>>0;return (h>>>8)/16777216;};const b=BODY[rp.pos]||[1,1],big=rp.pos==='OL'||rp.pos==='DL';
+  return {bw:b[0]+(r()-0.5)*0.09,bh:b[1]+(r()-0.5)*0.06,gait:0.92+r()*0.16,bp:r()*6.28,visor:!big&&r()<0.24,eb:r()<0.3,sl:r()<0.3?(r()<0.55?'#16181c':'#f2f2f2'):null,towel:!big&&rp.pos!=='K'&&r()<0.35,shoe:r()<0.5?'#f4f4f4':r()<0.8?'#16181c':null,glove:r()<0.3?'#f2f2f2':r()<0.5?'#16181c':null,cage:big||rp.pos==='LB'||rp.pos==='TE',hips:r()<0.4};}
 function mkEnt(side,team,role,rp,x,z,kit,stance){const zs=gm.zone[rp.id],zone=!!rp.xf&&(rp.pos==='OL'||rp.pos==='K'||!!(zs&&zs.on));
-  return {side,team,role,rp,x,z:Math.min(z,108),y:0,vy:0,vx:0,vz:0,dir:side==='O'?0:Math.PI,pdir:0,max:(5.2+(rp.spd-50)*0.07)*(zone&&XF_SPD[xfKey(rp)]||1)*(gm.wx&&gm.wx.sky==='snow'?0.95:gm.wx&&gm.wx.sky==='rain'?0.98:1),kit,skin:skinOf(rp),num:String(rp.num),nm:jerseyName(rp.n),cap:!!rp.cap,zone,
+  return {side,team,role,rp,x,z:Math.min(z,108),y:0,vy:0,vx:0,vz:0,dir:side==='O'?0:Math.PI,pdir:0,max:(5.2+(rp.spd-50)*0.07)*(zone&&XF_SPD[xfKey(rp)]||1)*(team==='A'&&!gm.two?1+0.012*clamp(dk(),0,2.2):1)*(gm.wx&&gm.wx.sky==='snow'?0.95:gm.wx&&gm.wx.sky==='rain'?0.98:1),kit,skin:skinOf(rp),lk:looks(rp),num:String(rp.num),nm:jerseyName(rp.n),cap:!!rp.cap,zone,
   pose:{lean:0,lTh:0,rTh:0,lKn:0,rKn:0,lArm:0,rArm:0,lEl:0,rEl:0,fall:0,hop:0,spread:0.12,roll:0},ph:Math.random()*6,anim:'idle',animT:0,stance,down:false,stun:0,eng:null,engT:0,shedAt:0,freeUntil:0,tklCd:0,fallDir:1,fallAmt:1,rollT:0,spl:null,
   face:null,route:null,wp:0,cutT:-9,blk:null,beat:0,juke:0,jukeCd:0,slow:0,stumble:0,cover:null,cush:0,lag:0.2,react:0.25,blitz:false,crash:false,dbl:false,zn:null,dz:null,bite:0,lunge:0,lx:0,lz:0,drag:null,wrap:null,brk:false,key:0,sx:null,sy:0,R:null,hip:1};}
 
@@ -1241,7 +1248,7 @@ function snap(){if(!gm||gm.phase!=='presnap')return;if(gm.ko){const kt=gm.poss==
   gm.hole=play.t==='run'||play.pa?{x:gm.bx+play.aim,z:los+1.5}:null;gm.ucDrop=FORMS[play.f].QB[1]>-3;if(play.sneak)by.QB.anim='carry';
   const A=DEF[gm.defCall];for(const role in A){const a=A[role],d=by[role];if(a[0]==='m')d.cover=by[a[1]];else if(a[0]==='z')d.zn=[a[1],a[2],a[3]];else if(a[0]==='d')d.dz=[a[1],a[2]];else if(a[0]==='r')d.blitz=true;else d.crash=true;}
   for(const e of gm.ents){e.react=0.3+(92-e.rp.ovr)/120;
-    if(e.cover){e.cush=e.z-e.cover.z;e.lag=zx(e,'lock')?0:clamp(0.42-e.rp.ovr/300+(uo?-0.04:0.04)*k+(zx(e.cover,'deep')?0.14:0),0.02,0.55);if(zx(e,'press'))e.cover.jam=0.9;}}
+    if(e.cover){e.cush=e.z-e.cover.z;e.lag=zx(e,'lock')?0:clamp(0.42-e.rp.ovr/300+(uo?-0.04:0.04)*Math.min(k,1.8)+(zx(e.cover,'deep')?0.14:0),0.02,0.55);if(zx(e,'press'))e.cover.jam=0.9;}}
   if(play.pa)for(const r of ['LB1','LB2','LB3','SS']){const d=by[r];if(!d.blitz&&!d.crash)d.bite=rnd(0.25,0.6)*clamp(1.3-(d.rp.ovr-60)/45,0.4,1.3);}
   by.LT.blk=by.DL1;by.LG.blk=by.DL2;by.RG.blk=by.DL3;by.RT.blk=by.DL4;
   if(play.t==='pass'){const bl=by.LB1.blitz?by.LB1:by.LB2.blitz?by.LB2:null;by.C.blk=bl||by.DL2;by.DL2.dbl=!bl;}
@@ -1315,7 +1322,7 @@ function tryTackle(d,c){const t=gm.t,lg=d.lunge>t;if(d.tklCd>t||c.down||dist(d,c
   const qbp=c===gm.by.QB&&gm.mode==='pocket',ball=c.rp.pos==='RB'||c.rp.pos==='TE';
   const xk=c.zone&&xfKey(c.rp),brk=qbp?xk==='escape':(xk==='wreck'||xk==='mismatch'||xk==='yac'&&gm.caught);
   if(brk&&!c.brk&&!d.eng&&!zx(d,'enforcer')&&!zx(d,'closer')){c.brk=true;d.stun=t+0.9;d.lunge=0;d.anim='dive';d.vx*=0.3;d.vz*=0.3;c.slow=t+0.1;flash(xfName(c.rp)+'! '+c.rp.n+(qbp?' slips the sack':' breaks the tackle'));return;}
-  let p=qbp?(c.team==='U'?0.72:0.88):0.75+(d.rp.ovr-c.rp.ovr)/220+(c.team==='U'?0.05:-0.05)*dk()+(c.team==='A'?0.06:0);
+  let p=qbp?(c.team==='U'?0.72:0.88):0.75+(d.rp.ovr-c.rp.ovr)/220+(c.team==='U'?0.05:-0.05)*Math.min(dk(),1.6)+(c.team==='A'?0.06:0);
   if(!qbp){const ab=xk==='ankle';if(c.juke>t)p-=ab?0.5:0.22;if(c.spin>t)p-=ab?0.55:0.3;if(c.rp.pos==='RB'&&!gm.caught)p-=0.02;}
   if(d===gm.ctl)p+=lg?0.18:0.1;if(d.eng)p*=0.2;const sure=(zx(d,'enforcer')||zx(d,'closer'))&&!d.eng;if(sure)p=0.97;
   if(Math.random()<clamp(p,0.08,0.97)){
@@ -1858,7 +1865,7 @@ function aiLateral(c){if(gm.two||c.team!=='A'||gm.ko||gm.ret||gm.ball.fly||(gm.l
   if(!last&&!hook)return;let nd=99;for(const d of gm.ents)if(d.side!==c.side&&!d.down)nd=Math.min(nd,dist(d,c));if(!hook&&nd>1.8)return;const L=latTargets(c);if(L.length&&Math.random()<(hook?1:0.04))lateral(c,pick(L));}
 // ----- fumbles and loose balls -----
 function fumbleCheck(c,d,big,sack){if(gm.ko||gm.conv||gm.ret||gm.loose||gm.drill&&gm.drill.kind==='kick')return false;const w=gm.wx||{};
-  let p=(sack?0.06:big?0.045:0.009)*(w.sky==='rain'?1.5:w.sky==='snow'?1.4:1)*(c.zone&&c.rp.pos==='RB'?0.3:1)*(zx(d,'strip')?4:zx(d,'hammer')?3:1)*(c.team==='U'&&!gm.two?[0.6,0.85,1,1.1][S.diff]:1);
+  let p=(sack?0.06:big?0.045:0.009)*(w.sky==='rain'?1.5:w.sky==='snow'?1.4:1)*(c.zone&&c.rp.pos==='RB'?0.3:1)*(zx(d,'strip')?4:zx(d,'hammer')?3:1)*(c.team==='U'&&!gm.two?[0.6,0.85,1,1.1,1.2][S.diff]:1);
   if(Math.random()>=p)return false;startLoose(c.x,c.z+0.4,c,d,'fum');return true;}
 function startLoose(x,z,from,forcer,why){const t=gm.t;gm.loose={why,from:from||null,forcer:forcer||null,t0:t,team:from?from.team:null};gm.carrier=null;gm.mode='loose';gm.throwing=null;
   gm.ball={loose:true,spin:true,x,y:0.8,z,vx:rnd(-3,3)+(from?from.vx*0.3:0),vz:rnd(-3,3)+(from?from.vz*0.3:0),vy:rnd(2.5,4.5)};
@@ -2095,7 +2102,7 @@ function updPose(e,dt){const p=e.pose,sp=Math.hypot(e.vx,e.vz),t=gm.t,now=gm.now
   const T={lean:0.05,lTh:0.05,rTh:0.05,lKn:0.1,rKn:0.1,lArm:0.1,rArm:0.1,lEl:0.25,rEl:0.25,fall:0,hop:0,spread:0.12,roll:0};
   const pre=ph==='presnap'||ph==='huddle'||ph==='kick'||ph==='card'||ph==='pat'||(ph==='kanim'&&!gm.kanim.launched);
   const fwd=e.vx*Math.sin(e.dir)+e.vz*Math.cos(e.dir);
-  if(sp>0.6&&!e.down){e.ph+=sp*dt*1.75;const a=Math.min(1,sp/6.5),s=Math.sin(e.ph),c=Math.cos(e.ph);
+  if(sp>0.6&&!e.down){e.ph+=sp*dt*1.75*(e.lk?e.lk.gait:1);const a=Math.min(1,sp/6.5),s=Math.sin(e.ph),c=Math.cos(e.ph);
     if(fwd<-0.8){T.lTh=s*0.45*a-0.1;T.rTh=-s*0.45*a-0.1;T.lKn=a*(0.35+0.4*Math.max(0,c));T.rKn=a*(0.35+0.4*Math.max(0,-c));T.lArm=-s*0.35;T.rArm=s*0.35;T.lEl=T.rEl=1.1;T.lean=0.12;}
     else{T.lTh=s*(0.6+0.45*a)+0.18*a;T.rTh=-s*(0.6+0.45*a)+0.18*a;T.lKn=a*(0.2+1.35*Math.max(0,c+0.25));T.rKn=a*(0.2+1.35*Math.max(0,-c+0.25));
       T.lArm=-s*(0.5+0.5*a);T.rArm=s*(0.5+0.5*a);T.lEl=T.rEl=0.5+1.05*a;T.lean=0.08+0.26*a;T.hop=Math.abs(c)*0.07*a;}
@@ -2103,6 +2110,7 @@ function updPose(e,dt){const p=e.pose,sp=Math.hypot(e.vx,e.vz),t=gm.t,now=gm.now
   else if(pre){if(e.stance==='s3'){T.lean=0.95;T.lTh=T.rTh=0.8;T.lKn=T.rKn=1.35;T.rArm=1.15;T.rEl=0;T.lArm=0.5;T.lEl=1.0;}
     else if(e.stance==='s2'){T.lean=0.32;T.lTh=T.rTh=0.38;T.lKn=T.rKn=0.62;T.lArm=T.rArm=0.25;T.lEl=T.rEl=0.9;}
     else{T.lean=0.12;T.lTh=T.rTh=0.15;T.lKn=T.rKn=0.28;T.lArm=T.rArm=0.7;T.lEl=T.rEl=1.25;}}
+  if(sp<=0.6&&!pre&&!e.down&&e.lk){const b=Math.sin(now*1.7+e.lk.bp);T.lean+=0.035*b;T.lArm+=0.05*b;T.rArm+=0.05*b;if(e.lk.hips&&ph==='dead'&&(!e.anim||e.anim==='idle')){T.lArm=T.rArm=0.25;T.lEl=T.rEl=1.9;T.spread=0.6;}}
   e.pdir=e.dir;if(e.stumble>t&&!e.down)T.lean=0.7;if(e.spin>t&&!e.down){T.lArm=1.3;T.lEl=0.5;T.lean=0.3;T.spread=0.35;}
   const an=e.anim,u=now-e.animT;
   if(an==='block'){T.lean=0.28;T.lArm=T.rArm=1.5;T.lEl=T.rEl=0.25;if(sp<=0.6){T.lTh=T.rTh=0.35;T.lKn=T.rKn=0.6;}}
