@@ -6,7 +6,7 @@ const coarse=window.matchMedia&&matchMedia('(pointer:coarse)').matches;
 // Franchise and Be a Pro keep separate saves; the last one used opens first.
 const KEYP='cityGridiron.pro',KEYL='cityGridiron.last';
 function save(){if(!S||S.user<0)return;S.nid=NID;try{localStorage.setItem(S.mode==='pro'?KEYP:KEY,JSON.stringify(S));localStorage.setItem(KEYL,S.mode==='pro'?'p':'f');}catch(e){}}
-function loadKey(k){try{const s=localStorage.getItem(k);if(s){const o=JSON.parse(s);if(o&&(o.v>=2&&o.v<=6)&&o.teams&&o.teams.length===32&&o.user>=0){S=o;NID=S.nid||1;if(S.v<6){migrate();save();}return true;}}}catch(e){}return false;}
+function loadKey(k){try{const s=localStorage.getItem(k);if(s){const o=JSON.parse(s);if(o&&(o.v>=2&&o.v<=6)&&o.teams&&o.teams.length===32&&o.user>=0){S=o;NID=S.nid||1;if(S.v<6)migrate();applyNames();save();return true;}}}catch(e){}return false;}
 function load(which){let w=which;if(!w){try{w=localStorage.getItem(KEYL);}catch(e){}w=w||'f';}const ok=loadKey(w==='p'?KEYP:KEY)||(!which&&loadKey(w==='p'?KEY:KEYP));if(ok){try{localStorage.setItem(KEYL,S.mode==='pro'?'p':'f');}catch(e){}}return ok;}
 const hasSave=k=>{try{return !!localStorage.getItem(k);}catch(e){return false;}};
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -26,11 +26,16 @@ function render(){if(!S||S.user<0){renderPick();return;}if(isPro()){renderPro();
 function renderPick(){if(!S)newLeague();
   $('#top').innerHTML='<div class="who"><div><h1>City Gridiron</h1><div class="meta">'+(UI.proNew?'Create your player':'Pick a city to run')+'</div></div></div>';$('#tabs').hidden=true;
   if(UI.proNew){$('#view').innerHTML='<div class="wrap">'+proNewCard()+'</div>';return;}
-  let h='<div class="wrap">'+quickCard()+'<section class="card hero"><p class="eyebrow">New franchise</p><h2>Thirty-two cities. One trophy.</h2><p class="muted">Call the plays, throw the passes, play defense, and trade players and draft picks to build a winner. Pick your city below.</p></section>'+proCard();
+  let h='<div class="wrap">'+namesCard()+quickCard()+'<section class="card hero"><p class="eyebrow">New franchise</p><h2>Thirty-two cities. One trophy.</h2><p class="muted">Call the plays, throw the passes, play defense, and trade players and draft picks to build a winner. Pick your city below.</p></section>'+proCard();
   for(const c of ['A','N']){h+=`<section><h3>${CONF[c]} conference</h3><div class="pick">`;
     for(const d of DIVS)for(const T of S.teams.filter(t=>t.conf===c&&t.div===d)){const r=ratings(T);h+=`<button data-a="pick" data-id="${T.id}">${sw(T)}<span><b>${T.name}</b><small>${d} · ${r.ovr} overall</small></span></button>`;}
     h+='</div></section>';}
   $('#view').innerHTML=h+'</div>';}
+// Real or made-up player names, chosen once on the start screen and changeable in Settings.
+function namesCard(){const r=namePref()==='real',ch=nameChosen(),b=(k,lab,on)=>`<button class="btn${on?'':' ghost'}" data-a="names" data-k="${k}" aria-pressed="${on}">${lab}</button>`;
+  return `<section class="card${ch?'':' hero'}"><p class="eyebrow">Player names</p>${ch?'':'<h2>Real or made up?</h2>'}<p class="muted">${ch?(r?'Rosters use the real players’ full names.':'Every player has a made-up name. Ratings, numbers and positions match the real rosters.')+' You can switch any time in Settings.':'Pick how the rosters read. Ratings, numbers and positions are the same either way, and you can switch any time in Settings.'}</p>
+  <div class="row">${b('fake','Made-up names',ch&&!r)}${b('real','Real names',ch&&r)}</div>${ch?'':`<p class="muted">For example: ${esc(nameEx(true))} or ${esc(nameEx(false))}.</p>`}</section>`;}
+function nameEx(real){const T=S&&S.teams&&S.teams.find(t=>t.abbr==='KC')||S.teams[0],p=T.roster.find(q=>q.fn&&q.pos==='QB')||T.roster.find(q=>q.fn);if(!p)return '';ensureNames();return (real?p.fn:p.mn)+', '+T.name+' QB';}
 function teamBlock(T,r){return `<div class="tb">${sw(T,'lg')}<div><b>${T.name}</b><span>${T.w}-${T.l}</span><div class="chips"><span class="chip">OFF ${r.off}</span><span class="chip">DEF ${r.def}</span></div></div></div>`;}
 
 // ----- uniforms -----
@@ -44,7 +49,7 @@ function openSetup(){const m=userMatch();if(!m)return;const home=m.h===S.user,U=
   const uU=home?'H':fixClash(U,'A',{T:O,key:'H'});UI.setup={home,opp:O.id,uU,uO:fixClash(O,home?'A':'H',{T:U,key:uU})};}
 function uniPicker(T,cur,side){return `<div class="unicol"><h3>${T.name}</h3><div class="unirow">`+['H','A','X','R'].map(k=>`<button class="uni${cur===k?' on':''}" data-a="uni" data-s="${side}" data-k="${k}" aria-pressed="${cur===k}">${uniSvg(T,k)}<span>${UNI_NAMES[k]}</span></button>`).join('')+'</div></div>';}
 function settingsRow(){const sel=(id,lab,opts,cur)=>`<span class="setp"><label for="${id}">${lab}</label><select id="${id}">${opts.map((o,i)=>`<option value="${i}"${cur===i?' selected':''}>${o}</option>`).join('')}</select></span>`;
-  return '<div class="row set">'+sel('setDiff','Difficulty',DIFFS,S.diff)+sel('setSpeed','Game speed',SPEEDS,S.speed)+sel('setDef','Defense',['Simulate defense','I play defense'],S.playDef?1:0)+sel('setKo','Kickoffs',['Skip returns','Play returns'],S.koRet?1:0)+sel('setTalk','Broadcast crew',['Off','Captions only','Voice and captions','Voice only'],S.talk)+sel('setQlen','Quarter length',QLENS.map(m=>m+' minutes'),Math.max(0,QLENS.indexOf(S.qlen||4)))+'</div>';}
+  return '<div class="row set">'+sel('setDiff','Difficulty',DIFFS,S.diff)+sel('setSpeed','Game speed',SPEEDS,S.speed)+sel('setDef','Defense',['Simulate defense','I play defense'],S.playDef?1:0)+sel('setKo','Kickoffs',['Skip returns','Play returns'],S.koRet?1:0)+sel('setTalk','Broadcast crew',['Off','Captions only','Voice and captions','Voice only'],S.talk)+sel('setQlen','Quarter length',QLENS.map(m=>m+' minutes'),Math.max(0,QLENS.indexOf(S.qlen||4)))+sel('setNames','Player names',['Made-up names','Real names'],namePref()==='real'?1:0)+'</div>';}
 const QLENS=[2,3,4,5,6,8];
 function setupCard(lab){const su=UI.setup,U=S.teams[S.user],O=S.teams[su.opp],rival=U.conf===O.conf&&U.div===O.div;
   const clash=colDist(UNI[U.abbr][su.uU][0],UNI[O.abbr][su.uO][0])<110;
@@ -251,6 +256,7 @@ function renderPanel(){const p=$('#panel'),g=gm;if(!g){p.innerHTML='';return;}le
 // ===== actions =====
 function togAsset(arr,id){const tr=UI.tr,i=arr.indexOf(id),mine=arr===tr.give||arr===tr.gk,n=mine?tr.give.length+tr.gk.length:tr.get.length+tr.tk.length;if(i>=0)arr.splice(i,1);else if(n<5)arr.push(id);tr.msg='';render();}
 const ACT={
+  names(d){setNamePref(d.k);applyNames();save();render();},
   pick(d){UI.two=null;S.user=+d.id;UI.tab='home';S.news=['Welcome to '+S.teams[S.user].name+'. Trades are open until week '+TRADE_DEADLINE+'. You start with '+S.tp+' training points.'];save();render();},
   tab(d){UI.tab=d.t;UI.confirmNew=false;UI.tr.msg='';UI.edMsg='';UI.faMsg='';render();$('#view').scrollTop=0;},
   play(){if(onRoad()){roadPlay();return;}openSetup();render();$('#view').scrollTop=0;},
@@ -319,7 +325,7 @@ document.addEventListener('keydown',ev=>{if(ev.key!=='Enter')return;const el=ev.
 document.addEventListener('change',ev=>{const t=ev.target;
   if(t.id==='trTeam'){const tr=UI.tr;tr.team=+t.value;tr.get=[];tr.tk=[];tr.msg='';render();}
   else if(t.id==='setDiff'){S.diff=+t.value;save();}else if(t.id==='setSpeed'){S.speed=+t.value;save();}else if(t.id==='setDef'){S.playDef=t.value==='1';save();}else if(t.id==='setKo'){S.koRet=t.value==='1';save();}else if(t.id==='setTalk'){S.talk=+t.value;if(S.talk<2)hush();if(S.talk===3){const c=document.getElementById('cap');if(c)c.hidden=true;}save();}
-  else if(t.id==='setV0'||t.id==='setV1'){const w=S.voice||['',''];w[t.id==='setV0'?0:1]=t.value;S.voice=w;voices=null;save();testVoices();}else if(t.id==='setVspd'){S.vspd=+t.value;save();testVoices();}else if(t.id==='setCrowd'){S.crowd=t.value==='1';save();}else if(t.id==='setQlen'){S.qlen=QLENS[+t.value]||4;save();}
+  else if(t.id==='setV0'||t.id==='setV1'){const w=S.voice||['',''];w[t.id==='setV0'?0:1]=t.value;S.voice=w;voices=null;save();testVoices();}else if(t.id==='setVspd'){S.vspd=+t.value;save();testVoices();}else if(t.id==='setCrowd'){S.crowd=t.value==='1';save();}else if(t.id==='setQlen'){S.qlen=QLENS[+t.value]||4;save();}else if(t.id==='setNames'){setNamePref(t.value==='1'?'real':'fake');applyNames();save();render();}
   else if(t.id==='qkU'||t.id==='qkO'||t.id==='qkQl'){if(UI.quick){if(t.id==='qkQl')UI.quick.ql=QLENS[+t.value]||2;else UI.quick[t.id==='qkU'?'u':'o']=+t.value;render();}}
   else if(t.id==='pnTeam')pnRead();
   else if(t.id==='twoH'||t.id==='twoA'){if(UI.two){UI.two[t.id==='twoH'?'h':'a']=+t.value;render();}}});
@@ -342,7 +348,7 @@ function proNewCard(){const P=pnDef(),teams=S.teams.slice().sort((a,b)=>a.name.l
   <p class="muted">${P.start==='nfl'?'You start as a 21-year-old rookie, about 70 overall, and you start every game. If the draft decides, one of the weaker teams picks you in the first round.':'You start as a 17-year-old senior, about 56 overall, and you start every game. Play well for scholarship offers, pick your college, and after your junior or senior year, declare for the NFL Draft.'}</p>
   <div class="row"><button class="btn" data-a="pnGo">Start your career</button><button class="btn ghost" data-a="${hasSave(KEY)||hasSave(KEYP)?'pnBack':'pnBack'}">Back</button></div></section>`;}
 function proSettingsRow(){const sel=(id,lab,opts,cur)=>`<span class="setp"><label for="${id}">${lab}</label><select id="${id}">${opts.map((o,i)=>`<option value="${i}"${cur===i?' selected':''}>${o}</option>`).join('')}</select></span>`;
-  return '<div class="row set">'+sel('setDiff','Difficulty',DIFFS,S.diff)+sel('setSpeed','Game speed',SPEEDS,S.speed)+sel('setTalk','Broadcast crew',['Off','Captions only','Voice and captions','Voice only'],S.talk)+sel('setQlen','Quarter length',QLENS.map(m=>m+' minutes'),Math.max(0,QLENS.indexOf(S.qlen||4)))+'</div>';}
+  return '<div class="row set">'+sel('setDiff','Difficulty',DIFFS,S.diff)+sel('setSpeed','Game speed',SPEEDS,S.speed)+sel('setTalk','Broadcast crew',['Off','Captions only','Voice and captions','Voice only'],S.talk)+sel('setQlen','Quarter length',QLENS.map(m=>m+' minutes'),Math.max(0,QLENS.indexOf(S.qlen||4)))+sel('setNames','Player names',['Made-up names','Real names'],namePref()==='real'?1:0)+'</div>';}
 function renderPro(){if(onRoad())return renderRoad();const p=proP(),P=S.pro,T=S.teams[S.user];P.xfs=P.xfs||[];if(!p){S.pro.done={n:'Unknown',pos:'WR',ovr:0,num:0,hist:[],aw:[]};}
   const q=proP();$('#top').innerHTML=`<div class="who">${sw(T,'lg')}<div><h1>${esc(q.n)}</h1><div class="meta">#${q.num} · ${q.pos} · ${P.done?'Retired':esc(T.name)} · ${S.season} · ${phaseName()}</div></div></div><div class="stat">${q.ovr}<small>Overall</small></div>`;
   if(!['home','team','league'].includes(UI.tab))UI.tab='home';

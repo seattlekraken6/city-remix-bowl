@@ -94,7 +94,9 @@ function makeKit(T,key){const U0=uniOf(T),u=U0[key]||U0.H,j=u[0],p=u[2];
   return {jersey:j,pads:j,sleeve:j,num:u[1],pants:p,socks:lum(j)>0.8?(lum(p)>0.8?u[4]:p):j,helmet:u[3],stripe:u[4],shoes:'#18191b',mask:lum(u[3])>0.55?'#3a3f46':'#d5d8dc',glove:lum(u[4])>0.85?'#e9e9e6':u[4]};}
 function lineup(T){const s=p=>starters(T,p).map(x=>x.cap?Object.assign({},x,{ovr:Math.min(99,x.ovr+2)}):x);const h=pos=>T.roster.filter(p=>p.pos===pos&&!p.inj).sort((a,b)=>b.ovr-a.ovr);const rb1=s('RB')[0],rb2=h('RB').filter(p=>!rb1||p.id!==rb1.id)[0]||h('TE')[1]||h('WR')[3]||rb1;
   return {RB2:rb2,QB:s('QB')[0],RB:s('RB')[0],WR:s('WR'),TE:s('TE')[0],OL:s('OL'),K:s('K')[0],DL:s('DL'),LB:s('LB'),CB:s('CB'),S:s('S')};}
-function jerseyName(n){n=String(n).trim();const w=n.split(/\s+/);return (w.length>1&&w[w.length-1].length>2?w[w.length-1]:n).toUpperCase().slice(0,11);}
+function jerseyName(n){n=String(n).trim();const w=n.split(/\s+/);while(w.length>2&&/^(jr\.?|sr\.?|ii|iii|iv|v)$/i.test(w[w.length-1]))w.pop();
+  if(w.length>2&&/^(van|de|la|st\.?)$/i.test(w[w.length-2]))w.splice(w.length-2,2,w[w.length-2]+' '+w[w.length-1]);
+  const l=w[w.length-1];return (w.length>1&&l.replace(/\W/g,'').length>2?l:n).toUpperCase().slice(0,18);}
 // Body types by position plus a little per player, a personal gait, and gear choices, so no two players look or move the same.
 const BODY={OL:[1.22,1.04],DL:[1.16,1.03],TE:[1.08,1.03],LB:[1.06,1.01],QB:[1.0,1.02],RB:[1.04,0.96],WR:[0.93,1.02],CB:[0.92,0.99],S:[0.96,1.0],K:[0.92,0.98],P:[0.93,1.0]};
 function looks(rp){let h=(((rp.id||1)*2654435761)>>>0);const r=()=>{h=(h*1103515245+12345)>>>0;return (h>>>8)/16777216;};const b=BODY[rp.pos]||[1,1],big=rp.pos==='OL'||rp.pos==='DL';

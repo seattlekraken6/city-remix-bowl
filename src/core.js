@@ -26,8 +26,8 @@ const TEAM_DEFS=[
 ['ARI','Arizona','#97233F','#FFB612','N','West'],['LAR','Los Angeles R','#003594','#FFD100','N','West'],
 ['SF','San Francisco','#AA0000','#B3995D','N','West'],['SEA','Seattle','#002244','#69BE28','N','West']];
 const CONF={A:'American',N:'National'},DIVS=['East','North','South','West'];
-const FIRST=['James','Marcus','Tyler','Devin','Jalen','Caleb','Andre','Isaiah','Malik','Trevor','Darius','Cole','Xavier','Jordan','Elijah','Micah','Derrick','Brandon','Chris','Aaron','Nate','Kyle','Jamal','Terrence','Grant','Logan','Mason','Hunter','Dante','Corey','Zach','Tre','Omar','Luis','Mateo','Diego','Kai','Noah','Ethan','Owen','Jaylen','Deshawn','Rashad','Quincy','Miles','Jonah','Silas','Reggie','Tavon','Bryce','Colton','Wyatt','Emeka','Kofi','Sione','Tevita','Keanu','Javier','Rico','Dominic','Theo','Amari','Ezra','Roman'];
-const LAST=['Brooks','Hayes','Bennett','Coleman','Foster','Griffin','Harper','Jennings','Keller','Lawson','Mercer','Nolan','Owens','Pierce','Quinn','Reeves','Sutton','Tate','Underwood','Vaughn','Abbott','Barnes','Castillo','Dawson','Ellis','Holloway','Ingram','Knox','Monroe','Nash','Osei','Paige','Rhodes','Salazar','Thorne','Upton','Vega','Whitaker','Yates','Zamora','Ashford','Blackwood','Calloway','Delgado','Easton','Fontaine','Gallagher','Hendrix','Irving','Jacobsen','Kimball','Langford','Maddox','Navarro','Okafor','Radford','Stanton','Tolliver','Usher','Valdez','Winslow','Yarbrough','Adeyemi','Boateng','Cortez','Dunmore','Everett','Garza','Hollis','Iverson','Jarrett','Kane','Lockhart','Mosley','Nwosu','Ortega','Pruitt','Rollins','Sandoval','Tuilagi','Fonoti','Mahoe','Kealoha','Whitlock','Bellamy','Marchetti','Lindqvist','Achebe','Duvall','Sterling'];
+const FIRST=['James','Marcus','Tyler','Devin','Jalen','Caleb','Andre','Isaiah','Malik','Trevor','Darius','Cole','Xavier','Jordan','Elijah','Micah','Derrick','Brandon','Chris','Aaron','Nate','Kyle','Jamal','Terrence','Grant','Logan','Mason','Hunter','Dante','Corey','Zach','Tre','Omar','Luis','Mateo','Diego','Kai','Noah','Ethan','Owen','Jaylen','Deshawn','Rashad','Quincy','Miles','Jonah','Silas','Reggie','Tavon','Bryce','Colton','Wyatt','Emeka','Kofi','Sione','Tevita','Keanu','Javier','Rico','Dominic','Theo','Amari','Ezra','Roman','Desmond','Lamar','Cedric','Marquez','Antwan','Gavin','Brody','Landon','Rashard','Tyrell','Isaac','Dillon','Kendall','Jaden','Myles','Darnell','Keon','Trey','Shane','Garrett','Damon','Elias','Jace','Vincent','Tobias','Levi','Andre','Khalil','Zion','Malachi','Kobe','Cam','Brett','Darian','Nico','Ty'];
+const LAST=['Brooks','Hayes','Bennett','Coleman','Foster','Griffin','Harper','Jennings','Keller','Lawson','Mercer','Nolan','Owens','Pierce','Quinn','Reeves','Sutton','Tate','Underwood','Vaughn','Abbott','Barnes','Castillo','Dawson','Ellis','Holloway','Ingram','Knox','Monroe','Nash','Osei','Paige','Rhodes','Salazar','Thorne','Upton','Vega','Whitaker','Yates','Zamora','Ashford','Blackwood','Calloway','Delgado','Easton','Fontaine','Gallagher','Hendrix','Irving','Jacobsen','Kimball','Langford','Maddox','Navarro','Okafor','Radford','Stanton','Tolliver','Usher','Valdez','Winslow','Yarbrough','Adeyemi','Boateng','Cortez','Dunmore','Everett','Garza','Hollis','Iverson','Jarrett','Kane','Lockhart','Mosley','Nwosu','Ortega','Pruitt','Rollins','Sandoval','Tuilagi','Fonoti','Mahoe','Kealoha','Whitlock','Bellamy','Marchetti','Lindqvist','Achebe','Duvall','Sterling','Ambrose','Bridgewater','Carrow','Dempsey','Eldridge','Faircloth','Gaines','Halstead','Kirkland','Lomax','McCray','Norwood','Oakes','Prescott','Ridley','Shelton','Truitt','Varner','Wexford','Ainsworth','Banks','Crenshaw','Dorsey','Embry','Fulton','Gentry','Hardaway','Kinsley','Lyle','Merriweather','Northcutt','Pembrook','Royster','Satterfield','Tillman','Wadley','Akins','Battle','Cashwell','Darby','Ferrell','Greer','Hightower','Jessup','Kitchens','Ledbetter','Manigault','Oduya','Petty','Renfro','Strickland','Tubbs','Vick','Womack'];
 const POS_ORDER=['QB','RB','WR','TE','OL','DL','LB','CB','S','K'];
 const ROSTER_N={QB:2,RB:2,WR:4,TE:2,OL:6,DL:5,LB:4,CB:3,S:3,K:1};
 const START_N={QB:1,RB:1,WR:3,TE:1,OL:5,DL:4,LB:3,CB:2,S:2,K:1};
@@ -108,14 +108,36 @@ function mkPicks(yr){return [...Array(32).keys()].flatMap(t=>[1,2,3].map(rd=>({i
 const FA_BAG=POS_ORDER.flatMap(pos=>Array(ROSTER_N[pos]).fill(pos));
 function genFA(n){const out=[];for(let i=0;i<n;i++){const pos=pick(FA_BAG);out.push(mkPlayer(pos,clamp(66+gauss()*5+(Math.random()<0.08?8:0),58,86),rint(23,33),null));}return out;}
 
+// ----- player names: real or made up -----
+// One choice for every mode, kept in the browser. Real players carry both names (fn real, mn made up) so the switch can flip back and forth.
+const NAMES_KEY='cityGridiron.names';
+function namePref(){try{return localStorage.getItem(NAMES_KEY)==='real'?'real':'fake';}catch(e){return 'fake';}}
+function nameChosen(){try{return !!localStorage.getItem(NAMES_KEY);}catch(e){return false;}}
+function setNamePref(m){try{localStorage.setItem(NAMES_KEY,m==='real'?'real':'fake');}catch(e){}}
+function hashStr(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function fakeFor(full,used){for(let k=0;k<60;k++){const h=hashStr(full+'#'+k),n=FIRST[h%FIRST.length]+' '+LAST[(h>>>12)%LAST.length];if(!used.has(n)){used.add(n);return n;}}return pick(FIRST)+' '+pick(LAST);}
+function allPlayers(){const a=[];if(!S)return a;for(const T of S.teams)a.push(...T.roster);if(S.fa)a.push(...S.fa);if(S.draft&&S.draft.pool)a.push(...S.draft.pool);return a;}
+let REAL_IX=null;
+function realIx(){if(REAL_IX)return REAL_IX;REAL_IX={};for(const t in REAL)REAL[t].forEach((r,i)=>{const k=r[0]+'|'+r[1];(REAL_IX[k]=REAL_IX[k]||[]).push([r[3],REALF[t][i]]);});return REAL_IX;}
+// Older saves only have the short names ("Patty M"); find each one's full name once.
+function ensureNames(){const ps=allPlayers(),used=new Set();
+  for(const p of ps){if(p.fn===undefined){const c=realIx()[p.n+'|'+p.pos];p.fn=c?((c.find(x=>x[0]===p.num)||c[0])[1]):null;}}
+  for(const p of ps){if(!p.fn)used.add(p.n);else if(p.mn)used.add(p.mn);}
+  for(const p of ps)if(p.fn&&!p.mn)p.mn=fakeFor(p.fn,used);}
+function applyNames(walk){if(!S)return;ensureNames();const real=namePref()==='real',ren={};
+  for(const p of allPlayers())if(p.fn){const t=real?p.fn:p.mn;if(p.n!==t){ren[p.n]=t;p.n=t;}}
+  const keys=Object.keys(ren).filter(k=>k.length>2);if(walk===false||!keys.length)return;
+  const re=new RegExp("(?<![\\w'])("+keys.sort((a,b)=>b.length-a.length).map(k=>k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|')+")(?![\\w'])",'g');
+  const fix=(o,d)=>{if(!o||typeof o!=='object'||d>9)return;for(const k in o){if(k==='fn'||k==='mn'||k==='n'&&o.fn)continue;const v=o[k];if(typeof v==='string'){if(v.length>2&&re.test(v)){re.lastIndex=0;o[k]=v.replace(re,m=>ren[m]||m);}re.lastIndex=0;}else if(v&&typeof v==='object')fix(v,d+1);}};
+  fix(S,0);}
 function newLeague(){NID=1;
   const teams=TEAM_DEFS.map((d,i)=>{const taken=new Set(),roster=[];
-    for(const r of REAL[d[0]]){let num=r[3];if(taken.has(num))num=numFor(r[1],taken);else taken.add(num);
-      const p={id:NID++,n:r[0],pos:r[1],age:r[5],ovr:r[2],dev:devFor(r[2],r[5],r[4]),pot:r[2],spd:spdFor(r[1],r[2]),num,xf:r[4]===1?XFS[r[1]][NID%3][0]:false,rk:r[5]<=22?2026:0};p.pot=potFor(p);p.leg=Math.round(Math.max(0,r[5]-22)*Math.max(0,r[2]-82)/6*10)/10;roster.push(p);}
+    REAL[d[0]].forEach((r,ri)=>{let num=r[3];if(taken.has(num))num=numFor(r[1],taken);else taken.add(num);
+      const p={id:NID++,n:r[0],pos:r[1],age:r[5],ovr:r[2],dev:devFor(r[2],r[5],r[4]),pot:r[2],spd:spdFor(r[1],r[2]),num,xf:r[4]===1?XFS[r[1]][NID%3][0]:false,rk:r[5]<=22?2026:0};p.pot=potFor(p);p.leg=Math.round(Math.max(0,r[5]-22)*Math.max(0,r[2]-82)/6*10)/10;p.fn=REALF[d[0]][ri];roster.push(p);});
     for(const pos of POS_ORDER)while(roster.filter(p=>p.pos===pos).length<ROSTER_N[pos])roster.push(mkPlayer(pos,rnd(60,67),rint(22,25),taken));
     return {id:i,abbr:d[0],name:d[1],c1:d[2],c2:d[3],conf:d[4],div:d[5],roster,w:0,l:0,pf:0,pa:0};});
   S={v:6,qlen:4,rec:{s:{},c:{}},hof:[],hist:[],drill:null,gpU:0,talk:2,pst:{},awards:null,season:2026,week:0,user:-1,teams,schedule:[],phase:'regular',po:null,picks:[],pid:1,news:[],offer:null,nid:NID,champ:null,last:'',diff:1,playDef:true,speed:1,koRet:true,tp:12,draft:null,myPicks:[],fa:[],rank:{}};
-  S.picks=[...mkPicks(2027),...mkPicks(2028)];S.fa=genFA(60);computeRanks(false);S.schedule=makeSchedule(S.season);return S;}
+  S.picks=[...mkPicks(2027),...mkPicks(2028)];S.fa=genFA(60);applyNames(false);computeRanks(false);S.schedule=makeSchedule(S.season);return S;}
 // Brings a save from the previous version up to date.
 // v6: one of three X-Factors per position instead of a yes/no flag.
 function fixXF(o,d){if(!o||typeof o!=='object'||d>6)return;if(Array.isArray(o)){for(const x of o)fixXF(x,d+1);return;}if(o.xf===true&&o.pos&&XFS[o.pos])o.xf=XFS[o.pos][(o.id||0)%3][0];for(const k in o)if(o[k]&&typeof o[k]==='object')fixXF(o[k],d+1);}
