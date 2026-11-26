@@ -109,7 +109,7 @@ const FA_BAG=POS_ORDER.flatMap(pos=>Array(ROSTER_N[pos]).fill(pos));
 function genFA(n){const out=[];for(let i=0;i<n;i++){const pos=pick(FA_BAG);out.push(mkPlayer(pos,clamp(66+gauss()*5+(Math.random()<0.08?8:0),58,86),rint(23,33),null));}return out;}
 
 // ----- player names: real or made up -----
-// One choice for every mode, kept in the browser. Real players carry both names (fn real, mn made up) so the switch can flip back and forth.
+// One choice for every mode, kept in the browser. Real-roster players carry both names (fn sound-alike, mn made up) so the switch can flip back and forth.
 const NAMES_KEY='cityGridiron.names';
 function namePref(){try{return localStorage.getItem(NAMES_KEY)==='real'?'real':'fake';}catch(e){return 'fake';}}
 function nameChosen(){try{return !!localStorage.getItem(NAMES_KEY);}catch(e){return false;}}
@@ -118,9 +118,10 @@ function hashStr(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt
 function fakeFor(full,used){for(let k=0;k<60;k++){const h=hashStr(full+'#'+k),n=FIRST[h%FIRST.length]+' '+LAST[(h>>>12)%LAST.length];if(!used.has(n)){used.add(n);return n;}}return pick(FIRST)+' '+pick(LAST);}
 function allPlayers(){const a=[];if(!S)return a;for(const T of S.teams)a.push(...T.roster);if(S.fa)a.push(...S.fa);if(S.draft&&S.draft.pool)a.push(...S.draft.pool);return a;}
 let REAL_IX=null;
-function realIx(){if(REAL_IX)return REAL_IX;REAL_IX={};for(const t in REAL)REAL[t].forEach((r,i)=>{const k=r[0]+'|'+r[1];(REAL_IX[k]=REAL_IX[k]||[]).push([r[3],REALF[t][i]]);});return REAL_IX;}
+function realIx(){if(REAL_IX)return REAL_IX;REAL_IX={};for(const t in REAL)REAL[t].forEach((r,i)=>{const k=r[0]+'|'+r[1];(REAL_IX[k]=REAL_IX[k]||[]).push([r[3],REALS[t][i]]);});return REAL_IX;}
 // Older saves only have the short names ("Patty M"); find each one's full name once.
 function ensureNames(){const ps=allPlayers(),used=new Set();
+  if(S.nv!==2){const hx={};for(const t in REALH)REALH[t].forEach((h,i)=>hx[h]=REALS[t][i]);for(const p of ps)if(p.fn&&hx[hashStr(p.fn)])p.fn=hx[hashStr(p.fn)];S.nv=2;}
   for(const p of ps){if(p.fn===undefined){const c=realIx()[p.n+'|'+p.pos];p.fn=c?((c.find(x=>x[0]===p.num)||c[0])[1]):null;}}
   for(const p of ps){if(!p.fn)used.add(p.n);else if(p.mn)used.add(p.mn);}
   for(const p of ps)if(p.fn&&!p.mn)p.mn=fakeFor(p.fn,used);}
@@ -133,10 +134,10 @@ function applyNames(walk){if(!S)return;ensureNames();const real=namePref()==='re
 function newLeague(){NID=1;
   const teams=TEAM_DEFS.map((d,i)=>{const taken=new Set(),roster=[];
     REAL[d[0]].forEach((r,ri)=>{let num=r[3];if(taken.has(num))num=numFor(r[1],taken);else taken.add(num);
-      const p={id:NID++,n:r[0],pos:r[1],age:r[5],ovr:r[2],dev:devFor(r[2],r[5],r[4]),pot:r[2],spd:spdFor(r[1],r[2]),num,xf:r[4]===1?XFS[r[1]][NID%3][0]:false,rk:r[5]<=22?2026:0};p.pot=potFor(p);p.leg=Math.round(Math.max(0,r[5]-22)*Math.max(0,r[2]-82)/6*10)/10;p.fn=REALF[d[0]][ri];roster.push(p);});
+      const p={id:NID++,n:r[0],pos:r[1],age:r[5],ovr:r[2],dev:devFor(r[2],r[5],r[4]),pot:r[2],spd:spdFor(r[1],r[2]),num,xf:r[4]===1?XFS[r[1]][NID%3][0]:false,rk:r[5]<=22?2026:0};p.pot=potFor(p);p.leg=Math.round(Math.max(0,r[5]-22)*Math.max(0,r[2]-82)/6*10)/10;p.fn=REALS[d[0]][ri];roster.push(p);});
     for(const pos of POS_ORDER)while(roster.filter(p=>p.pos===pos).length<ROSTER_N[pos])roster.push(mkPlayer(pos,rnd(60,67),rint(22,25),taken));
     return {id:i,abbr:d[0],name:d[1],c1:d[2],c2:d[3],conf:d[4],div:d[5],roster,w:0,l:0,pf:0,pa:0};});
-  S={v:6,qlen:4,rec:{s:{},c:{}},hof:[],hist:[],drill:null,gpU:0,talk:2,pst:{},awards:null,season:2026,week:0,user:-1,teams,schedule:[],phase:'regular',po:null,picks:[],pid:1,news:[],offer:null,nid:NID,champ:null,last:'',diff:1,playDef:true,speed:1,koRet:true,tp:12,draft:null,myPicks:[],fa:[],rank:{}};
+  S={v:6,nv:2,qlen:4,rec:{s:{},c:{}},hof:[],hist:[],drill:null,gpU:0,talk:2,pst:{},awards:null,season:2026,week:0,user:-1,teams,schedule:[],phase:'regular',po:null,picks:[],pid:1,news:[],offer:null,nid:NID,champ:null,last:'',diff:1,playDef:true,speed:1,koRet:true,tp:12,draft:null,myPicks:[],fa:[],rank:{}};
   S.picks=[...mkPicks(2027),...mkPicks(2028)];S.fa=genFA(60);applyNames(false);computeRanks(false);S.schedule=makeSchedule(S.season);return S;}
 // Brings a save from the previous version up to date.
 // v6: one of three X-Factors per position instead of a yes/no flag.
