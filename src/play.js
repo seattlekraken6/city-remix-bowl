@@ -1106,7 +1106,7 @@ function updWho(g){if(g.pro){const pe=proEnt(),k=g.phase+'|'+(!!pe&&g.carrier===
   if(zl.length)w+=(w?'<br>':'')+'<span class="zl"><em class="xf">X</em> In the zone: '+zl.join(', ')+'</span>';
   if(g.pro&&g.ps[g.pro.id]&&g.phase!=='live')w+=(w?'<br>':'')+'<span class="zl"><b>You</b> · '+esc(proLine(g.ps[g.pro.id],g.pro.pos))+'</span>';
   if(w!==whoStr){whoStr=w;const el=document.getElementById('who');el.innerHTML=w;el.hidden=!w;}}
-function frame(ts){if(!gm){rafOn=false;return;}const real=Math.min(0.05,(ts-lastTs)/1000||0.016);lastTs=ts;const dt=real*(SPEED_X[S.speed]||1);
+function frame(ts){if(!gm){rafOn=false;return;}if(window.TNTBridge&&TNTBridge.paused){lastTs=ts;renderGame();requestAnimationFrame(frame);return;}const real=Math.min(0.05,(ts-lastTs)/1000||0.016);lastTs=ts;const dt=real*(SPEED_X[S.speed]||1);
   const n=Math.max(1,Math.ceil(dt/0.0167)),h=dt/n;
   if(gm.phase==='replay'){stepReplay(real);rpCam(real);updHud();renderGame();requestAnimationFrame(frame);return;}
   for(let i=0;i<n&&gm;i++){gm.now+=h;const ph=gm.phase;if(ph==='live'){if(gm.ko)stepKO(h);else stepLive(h);}else if(ph==='dead')stepDead(h);else if(ph==='kanim')stepKickAnim(h);if(!gm)break;for(const e of gm.ents)updPose(e,h);}

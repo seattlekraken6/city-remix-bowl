@@ -20,11 +20,11 @@ const phaseName=()=>S.phase==='regular'?'Week '+(S.week+1):S.phase==='playoffs'?
 const FILT={ALL:POS_ORDER,OFF:['QB','RB','WR','TE','OL'],DEF:['DL','LB','CB','S'],K:['K']};
 
 function render(){if(!S||S.user<0){renderPick();return;}if(isPro()){renderPro();return;}const U=S.teams[S.user];
-  $('#top').innerHTML=`<div class="who">${sw(U,'lg')}<div><h1>${U.name}</h1><div class="meta">${S.season} · ${phaseName()} · ${U.w}-${U.l}</div></div></div><div class="stat">${S.tp}<small>Training points</small></div>`;
+  $('#top').innerHTML=`<div class="who">${sw(U,'lg')}<div><h1>${U.name}</h1><div class="meta">${S.season} · ${phaseName()} · ${U.w}-${U.l}</div></div></div><div class="stat">${S.tp}<small>Training points</small></div>`+fbTop();
   $('#tabs').hidden=false;$('#tabs').innerHTML=[['home',S.phase==='draft'?'Draft':'Home'],['roster','Roster'],['trade','Trades'],['league','League']].map(t=>`<button data-a="tab" data-t="${t[0]}" class="${UI.tab===t[0]?'on':''}">${t[1]}</button>`).join('');
   ({home:vHome,roster:vRoster,trade:vTrade,league:vLeague})[UI.tab]();}
 function renderPick(){if(!S)newLeague();
-  $('#top').innerHTML='<div class="who"><div><h1>City Gridiron</h1><div class="meta">'+(UI.proNew?'Create your player':'Pick a city to run')+'</div></div></div>';$('#tabs').hidden=true;
+  $('#top').innerHTML='<div class="who"><div><h1>City Gridiron</h1><div class="meta">'+(UI.proNew?'Create your player':'Pick a city to run')+'</div></div></div>'+fbTop();$('#tabs').hidden=true;
   if(UI.proNew){$('#view').innerHTML='<div class="wrap">'+proNewCard()+'</div>';return;}
   let h='<div class="wrap">'+namesCard()+quickCard()+'<section class="card hero"><p class="eyebrow">New franchise</p><h2>Thirty-two cities. One trophy.</h2><p class="muted">Call the plays, throw the passes, play defense, and trade players and draft picks to build a winner. Pick your city below.</p></section>'+proCard();
   for(const c of ['A','N']){h+=`<section><h3>${CONF[c]} conference</h3><div class="pick">`;
@@ -256,6 +256,7 @@ function renderPanel(){const p=$('#panel'),g=gm;if(!g){p.innerHTML='';return;}le
 // ===== actions =====
 function togAsset(arr,id){const tr=UI.tr,i=arr.indexOf(id),mine=arr===tr.give||arr===tr.gk,n=mine?tr.give.length+tr.gk.length:tr.get.length+tr.tk.length;if(i>=0)arr.splice(i,1);else if(n<5)arr.push(id);tr.msg='';render();}
 const ACT={
+  feedback(){sendFeedback();},
   names(d){setNamePref(d.k);applyNames();save();render();},
   pick(d){UI.two=null;S.user=+d.id;UI.tab='home';S.news=['Welcome to '+S.teams[S.user].name+'. Trades are open until week '+TRADE_DEADLINE+'. You start with '+S.tp+' training points.'];save();render();},
   tab(d){UI.tab=d.t;UI.confirmNew=false;UI.tr.msg='';UI.edMsg='';UI.faMsg='';render();$('#view').scrollTop=0;},
@@ -350,7 +351,7 @@ function proNewCard(){const P=pnDef(),teams=S.teams.slice().sort((a,b)=>a.name.l
 function proSettingsRow(){const sel=(id,lab,opts,cur)=>`<span class="setp"><label for="${id}">${lab}</label><select id="${id}">${opts.map((o,i)=>`<option value="${i}"${cur===i?' selected':''}>${o}</option>`).join('')}</select></span>`;
   return '<div class="row set">'+sel('setDiff','Difficulty',DIFFS,S.diff)+sel('setSpeed','Game speed',SPEEDS,S.speed)+sel('setTalk','Broadcast crew',['Off','Captions only','Voice and captions','Voice only'],S.talk)+sel('setQlen','Quarter length',QLENS.map(m=>m+' minutes'),Math.max(0,QLENS.indexOf(S.qlen||4)))+sel('setNames','Player names',['Made-up names','Sound-alike names'],namePref()==='real'?1:0)+'</div>';}
 function renderPro(){if(onRoad())return renderRoad();const p=proP(),P=S.pro,T=S.teams[S.user];P.xfs=P.xfs||[];if(!p){S.pro.done={n:'Unknown',pos:'WR',ovr:0,num:0,hist:[],aw:[]};}
-  const q=proP();$('#top').innerHTML=`<div class="who">${sw(T,'lg')}<div><h1>${esc(q.n)}</h1><div class="meta">#${q.num} · ${q.pos} · ${P.done?'Retired':esc(T.name)} · ${S.season} · ${phaseName()}</div></div></div><div class="stat">${q.ovr}<small>Overall</small></div>`;
+  const q=proP();$('#top').innerHTML=`<div class="who">${sw(T,'lg')}<div><h1>${esc(q.n)}</h1><div class="meta">#${q.num} · ${q.pos} · ${P.done?'Retired':esc(T.name)} · ${S.season} · ${phaseName()}</div></div></div><div class="stat">${q.ovr}<small>Overall</small></div>`+fbTop();
   if(!['home','team','league'].includes(UI.tab))UI.tab='home';
   $('#tabs').hidden=false;$('#tabs').innerHTML=[['home','Career'],['team','Team'],['league','League']].map(t=>`<button data-a="tab" data-t="${t[0]}" class="${UI.tab===t[0]?'on':''}">${t[1]}</button>`).join('');
   ({home:vPro,team:vProTeam,league:vLeague})[UI.tab]();}
@@ -405,7 +406,7 @@ function proTradeCard(p){if(S.pro.done||onRoad())return '';const open=proTradeOp
   return `<section class="card"><h3>Request a trade</h3>${!open?`<p class="muted">The trade deadline has passed. Requests open again in the offseason.</p>`:su.length?`<p class="muted">These teams would start you at ${p.pos}. Trades go through right away.</p><div class="row"><select id="proTeam" aria-label="Team to be traded to">${su.map(t=>`<option value="${t.id}">${t.name} (${t.w}-${t.l}, ${ratings(t).ovr} OVR)</option>`).join('')}</select><button class="btn ghost sm" data-a="proTr">Request trade</button></div>`:`<p class="muted">No team would start you over their ${p.pos} right now. Raise your overall and ask again.</p>`}</section>`;}
 function roadHist(){const R=S.road,p=proP();if(!R||!R.car||!R.car.length)return '';return `<div class="scroll"><table class="tbl sm"><thead><tr><th class="l">Season</th><th>Record</th><th>GP</th><th class="l">Stats</th><th class="l">Honors</th></tr></thead><tbody>${R.car.map(c=>`<tr><td class="l">${esc(c.lab)}</td><td>${c.w}-${c.l}</td><td>${c.gp}</td><td class="l">${esc(proLine(c.st,p.pos))}</td><td class="l">${c.aw.map(esc).join(', ')||'—'}</td></tr>`).join('')}</tbody></table></div>`;}
 function renderRoad(){const R=S.road,p=proP(),T=R.team;S.pro.xfs=S.pro.xfs||[];
-  $('#top').innerHTML=`<div class="who">${sw(T,'lg')}<div><h1>${esc(p.n)}</h1><div class="meta">#${p.num} · ${p.pos} · ${esc(roadLabel())}</div></div></div><div class="stat">${p.ovr}<small>Overall</small></div>`;
+  $('#top').innerHTML=`<div class="who">${sw(T,'lg')}<div><h1>${esc(p.n)}</h1><div class="meta">#${p.num} · ${p.pos} · ${esc(roadLabel())}</div></div></div><div class="stat">${p.ovr}<small>Overall</small></div>`+fbTop();
   if(!['home','team'].includes(UI.tab))UI.tab='home';$('#tabs').hidden=false;
   $('#tabs').innerHTML=[['home','Career'],['team','Team']].map(t=>`<button data-a="tab" data-t="${t[0]}" class="${UI.tab===t[0]?'on':''}">${t[1]}</button>`).join('');
   (UI.tab==='team'?vProTeam:vRoad)();}

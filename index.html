@@ -238,6 +238,201 @@ label{color:var(--muted);font-size:13px}
 </div>
 
 <script>
+/*
+  TNTgames bridge
+  ---------------
+  Connects this game to www.tntgames.fun when it's played there (inside the site's game frame).
+  Played on its own, it does nothing except open the feedback page.
+
+  Set up once, before the game's own scripts read their saves:
+    TNTBridge.init({ game: "retro-rink", keys: ["retro-rink-"] });   // localStorage keys (prefixes) that hold the saves
+
+  Then the game can call:
+    TNTBridge.season(done, total)   after each regular-season game/race (e.g. 9 of 17 weeks played)
+    TNTBridge.on("pause", fn)       the site asks the game to pause (a sign-in or feedback window opened)
+    TNTBridge.on("resume", fn)      the window closed
+    TNTBridge.feedback()            opens the feedback form
+    TNTBridge.embedded              true when the game is running inside tntgames.fun
+
+  Saves: whenever the game writes one of its save keys, the bridge sends a copy to the site, which
+  backs it up to the player's account if they're signed in. When the account has a newer save
+  (from another device), the site sends it here, the bridge writes it into localStorage and reloads
+  the game so it starts from that save.
+
+  This file is the same in every TNTgames game. The original lives in the tntgames repo.
+*/
+
+(function () {
+  var SITE = "https://www.tntgames.fun";
+  var PORTALS = [
+    /^https:\/\/(www\.)?tntgames\.fun$/,
+    /^https:\/\/seattlekraken6-tntgames(-[a-z0-9-]+)?\.vercel\.app$/,
+    /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/
+  ];
+  var META = "tnt-bridge-meta";
+
+  var embedded = false;
+  try { embedded = window.parent !== window; } catch (e) { embedded = true; }
+
+  var cfg = { game: "", keys: [] };
+  var portal = null;          // the site's origin, once it has answered
+  var signedIn = false;
+  var handlers = { pause: [], resume: [] };
+  var applying = false;
+  var saveTimer = null;
+
+  function isPortal(origin) { return PORTALS.some(function (re) { return re.test(origin); }); }
+
+  function send(msg) {
+    if (!embedded) return;
+    msg.tnt = 1;
+    try { window.parent.postMessage(msg, portal || "*"); } catch (e) { /* ignore */ }
+  }
+
+  function tracked(key) {
+    return typeof key === "string" && cfg.keys.some(function (p) { return key.indexOf(p) === 0; });
+  }
+
+  function storage() { try { return window.localStorage; } catch (e) { return null; } }
+
+  function readMeta() {
+    var ls = storage();
+    try { return JSON.parse((ls && ls.getItem(META)) || "{}") || {}; } catch (e) { return {}; }
+  }
+  function writeMeta(patch) {
+    var ls = storage(); if (!ls) return;
+    var m = readMeta();
+    for (var k in patch) m[k] = patch[k];
+    applying = true;
+    try { ls.setItem(META, JSON.stringify(m)); } catch (e) { /* ignore */ }
+    applying = false;
+  }
+
+  function snapshot() {
+    var ls = storage(), data = {};
+    if (!ls) return data;
+    for (var i = 0; i < ls.length; i++) {
+      var k = ls.key(i);
+      if (tracked(k)) data[k] = ls.getItem(k);
+    }
+    return data;
+  }
+
+  function localInfo() {
+    var m = readMeta();
+    return { updatedAt: m.updatedAt || null, syncedAt: m.syncedAt || null, hasData: Object.keys(snapshot()).length > 0 };
+  }
+
+  function pushSave() {
+    clearTimeout(saveTimer);
+    if (!signedIn || !portal) return;
+    var m = readMeta();
+    var updatedAt = m.updatedAt || new Date().toISOString();
+    if (!m.updatedAt) writeMeta({ updatedAt: updatedAt });
+    send({ type: "save", data: snapshot(), updatedAt: updatedAt });
+  }
+
+  var infoTimer = null;
+  function changed(key) {
+    if (applying || !tracked(key)) return;
+    writeMeta({ updatedAt: new Date().toISOString() });
+    if (signedIn) { clearTimeout(saveTimer); saveTimer = setTimeout(pushSave, 1200); return; }
+    // Signed out: just tell the site this device has progress, so it can back it up after sign-in.
+    clearTimeout(infoTimer);
+    infoTimer = setTimeout(function () { send({ type: "local", local: localInfo() }); }, 300);
+  }
+
+  // Notice every save the game makes, without changing the game's own save code.
+  try {
+    var proto = window.Storage && Storage.prototype;
+    if (proto && embedded) {
+      var origSet = proto.setItem, origRemove = proto.removeItem;
+      proto.setItem = function (k, v) {
+        var r = origSet.apply(this, arguments);
+        if (this === storage()) changed(String(k));
+        return r;
+      };
+      proto.removeItem = function (k) {
+        var r = origRemove.apply(this, arguments);
+        if (this === storage()) changed(String(k));
+        return r;
+      };
+    }
+  } catch (e) { /* storage blocked */ }
+
+  // Replace this game's saves with the account's copy, then restart the game from it.
+  function applyCloud(cloud) {
+    var ls = storage();
+    if (!ls || !cloud || !cloud.data || typeof cloud.data !== "object") return;
+    applying = true;
+    try {
+      var old = [];
+      for (var i = 0; i < ls.length; i++) { var k = ls.key(i); if (tracked(k)) old.push(k); }
+      old.forEach(function (k) { ls.removeItem(k); });
+      Object.keys(cloud.data).forEach(function (k) {
+        if (tracked(k) && cloud.data[k] != null) ls.setItem(k, String(cloud.data[k]));
+      });
+    } finally {
+      applying = false;
+    }
+    writeMeta({ updatedAt: cloud.updatedAt, syncedAt: cloud.updatedAt });
+    location.reload();
+  }
+
+  window.addEventListener("message", function (e) {
+    if (e.source !== window.parent || !isPortal(e.origin)) return;
+    var m = e.data;
+    if (!m || m.tnt !== 1) return;
+    portal = e.origin;
+    if (m.type === "account") {
+      var was = signedIn;
+      signedIn = !!m.signedIn;
+      if (signedIn && !was && m.autoUpload) pushSave();
+    } else if (m.type === "ask-local") {
+      clearTimeout(infoTimer);
+      send({ type: "local", local: localInfo(), reply: m.id });
+    } else if (m.type === "upload") {
+      pushSave();
+    } else if (m.type === "load") {
+      applyCloud(m.cloud);
+    } else if (m.type === "synced") {
+      if (m.updatedAt) writeMeta({ syncedAt: m.updatedAt });
+    } else if (m.type === "pause" || m.type === "resume") {
+      api.paused = m.type === "pause";
+      handlers[m.type].forEach(function (fn) { try { fn(); } catch (err) { console.error(err); } });
+    }
+  });
+
+  window.addEventListener("pagehide", function () { if (saveTimer) pushSave(); });
+
+  var api = {
+    embedded: embedded,
+    paused: false,
+    init: function (options) {
+      cfg.game = String((options && options.game) || "");
+      cfg.keys = [].concat((options && options.keys) || []);
+      send({ type: "hello", game: cfg.game, local: localInfo() });
+      return api;
+    },
+    on: function (event, fn) { if (handlers[event]) handlers[event].push(fn); return api; },
+    season: function (done, total) {
+      if (total > 0) send({ type: "season", done: Number(done) || 0, total: Number(total) });
+    },
+    feedback: function () {
+      if (embedded && portal) send({ type: "feedback" });
+      else window.open(SITE + "/feedback?game=" + encodeURIComponent(cfg.game), "_blank", "noopener");
+    }
+  };
+
+  window.TNTBridge = api;
+})();
+
+// tntgames.fun connection: cloud saves, season progress, pausing and the Feedback button.
+// tnt-bridge.js (the shared TNTgames bridge) is built in just before this file.
+if(window.TNTBridge)TNTBridge.init({game:'city-gridiron',keys:['cityGridiron.']});
+function sendFeedback(){if(window.TNTBridge)TNTBridge.feedback();else window.open('https://www.tntgames.fun/feedback?game=city-gridiron','_blank','noopener');}
+function fbTop(){return '<button class="btn ghost sm" data-a="feedback">Feedback</button>';}
+
 const REAL={"ARI":[["Gardner M","QB",72,15,0,30],["Carson B","QB",68,19,0,24],["Jeremiyah L","RB",82,4,0,21],["Tyler A","RB",81,22,0,26],["Mikey W","WR",83,14,0,26],["Kendrick B","WR",75,17,0,31],["Devin D","WR",74,81,0,29],["Reggie V","WR",69,82,0,25],["Trey M","TE",99,85,1,26],["Elijah H","TE",69,84,0,26],["Paris J","OL",87,70,0,25],["Hjalte F","OL",84,72,0,30],["Isaac S","OL",80,73,0,33],["Chase B","OL",75,57,0,22],["Jedrick W","OL",74,79,0,27],["Elijah W","OL",71,65,0,31],["Josh S","DL",85,10,2,29],["Walter N","DL",77,97,2,23],["Zaven C","DL",76,25,0,27],["Baron B","DL",73,5,0,27],["Jordan B","DL",73,52,0,24],["Mack W","LB",81,1,0,28],["Jack G","LB",73,50,0,28],["Cody S","LB",70,0,0,24],["Karson S","LB",66,43,0,23],["Will J","CB",77,2,0,23],["Kei'Trel C","CB",74,13,0,25],["Max M","CB",74,16,0,24],["Budda B","S",88,3,1,30],["Garrett W","S",77,21,0,25],["Andrew W","S",77,28,0,30],["Chad R","K",75,38,0,27]],"ATL":[["Mikey P","QB",76,9,0,26],["Tua T","QB",71,1,0,28],["Bijan R","RB",98,7,1,24],["Brian R","RB",78,15,0,27],["Drake L","WR",93,5,2,25],["Jahan D","WR",76,4,0,26],["Olamide Z","WR",73,14,0,29],["Zachariah B","WR",73,17,0,22],["Kyle P","TE",79,8,0,26],["Austin H","TE",74,81,0,32],["Chris L","OL",94,63,2,29],["Jake M","OL",87,70,0,34],["Ryan N","OL",85,64,0,29],["Matthew B","OL",80,65,0,26],["Jawaan T","OL",75,71,0,29],["Ethan O","OL",66,75,0,23],["Gervon D","DL",81,95,0,25],["Jalon W","DL",79,11,0,22],["James P","DL",79,27,0,23],["Brandon D","DL",76,54,0,25],["Samson E","DL",76,52,0,31],["Divine D","LB",80,0,0,28],["Kendal D","LB",73,53,0,23],["Christian H","LB",69,45,0,25],["JD B","LB",69,40,0,25],["AJ T","CB",88,24,2,28],["Avieon T","CB",75,12,0,21],["Mike H","CB",74,21,0,29],["Jessie B","S",95,3,1,29],["Xavier W","S",78,31,0,24],["Sydney B","S",73,29,0,26],["Nick F","K",83,6,0,42]],"BAL":[["Lamar J","QB",93,8,1,29],["Tyler H","QB",69,5,0,28],["Derrick H","RB",94,22,1,32],["Justice H","RB",77,43,0,29],["Zay F","WR",90,4,0,26],["Rashod B","WR",77,7,0,27],["Ja'Kobi L","WR",72,6,0,22],["Elijah S","WR",71,13,0,23],["Mark A","TE",86,89,2,31],["Durham S","TE",70,80,0,31],["Ronnie S","OL",86,79,2,32],["John S","OL",78,74,0,29],["Roger R","OL",78,70,0,24],["Olaivavega I","OL",78,71,0,22],["Cam J","OL",75,64,0,27],["Andrew V","OL",71,72,0,27],["Justin M","DL",90,92,2,29],["Trey H","DL",88,91,2,32],["Calais C","DL",82,93,0,40],["Travis J","DL",79,98,0,27],["Mike G","DL",76,15,0,23],["Roquan S","LB",92,0,1,29],["Trenton S","LB",79,32,0,25],["Teddye B","LB",74,40,0,24],["Jay H","LB",61,49,0,24],["Marlon H","CB",85,44,0,30],["Nate W","CB",84,2,0,23],["Chidobe A","CB",83,3,0,31],["Kyle H","S",94,14,2,25],["Malaki S","S",78,24,0,23],["Jaylinn H","S",77,21,0,29],["Tyler L","K",79,33,0,25]],"BUF":[["Josh A","QB",99,17,1,30],["Kyle A","QB",60,11,0,30],["James C","RB",92,4,2,27],["Ty J","RB",76,26,0,29],["DJ M","WR",84,2,0,29],["Khalil S","WR",83,10,0,26],["Keon C","WR",77,0,0,23],["Josh P","WR",75,5,0,27],["Dalton K","TE",83,86,0,27],["Dawson K","TE",76,88,0,30],["Dion D","OL",89,73,2,32],["Spencer B","OL",85,79,0,28],["Connor M","OL",81,66,0,29],["Austin C","OL",76,63,0,31],["O'Cyrus T","OL",75,64,0,26],["Lloyd C","OL",75,53,0,29],["Greg R","DL",90,15,2,26],["Ed O","DL",82,91,0,29],["Bradley C","DL",78,9,0,30],["Deone W","DL",77,96,0,22],["TJ P","DL",77,99,0,22],["Terrel B","LB",85,8,0,27],["Dorian W","LB",74,42,0,25],["Kaleb E","LB",71,52,0,23],["Joe A","LB",69,44,0,26],["Christian B","CB",80,47,0,26],["Dee A","CB",76,23,0,29],["Maxwell H","CB",75,1,0,23],["Cole B","S",79,24,0,24],["Damar H","S",73,3,0,28],["Jordan H","S",70,37,0,23],["Tyler B","K",74,16,0,29]],"CAR":[["Bryce Y","QB",82,9,0,25],["Kenny P","QB",66,12,0,28],["Chuba H","RB",85,30,0,27],["Jonathon B","RB",75,25,0,23],["Tetairoa M","WR",87,4,2,23],["Jalen C","WR",78,18,0,25],["Xavier L","WR",74,17,0,25],["John M","WR",73,13,0,26],["Tommy T","TE",73,82,0,26],["Ja'Tavion S","TE",69,0,0,23],["Damien L","OL",87,68,0,29],["Taylor M","OL",84,72,0,32],["Robert H","OL",81,50,0,30],["Ikem E","OL",80,79,0,26],["Rasheed W","OL",78,63,0,26],["Brady C","OL",76,70,0,29],["Derrick B","DL",96,95,2,28],["Jaelan P","DL",82,5,0,27],["Nic S","DL",75,11,0,22],["Bobby B","DL",74,97,0,26],["Lee H","DL",74,92,0,23],["Devin L","LB",88,55,2,28],["Tyrel D","LB",77,33,0,28],["Jackson K","LB",65,46,0,24],["Bam M","LB",63,54,0,24],["Jaycee H","CB",87,8,2,27],["Mike J","CB",81,2,0,29],["Chau S","CB",73,26,0,24],["Trevon M","S",81,7,0,27],["Nick S","S",75,21,0,31],["Isaiah S","S",72,27,0,28],["Ryan F","K",76,10,0,26]],"CHI":[["Caleb W","QB",95,18,1,24],["Case K","QB",65,11,0,38],["D'Andre S","RB",89,4,0,27],["Kyle M","RB",79,25,0,24],["Luther B","WR",83,10,0,23],["Rome O","WR",82,15,0,24],["Kalif R","WR",76,14,0,32],["Zavion T","WR",72,13,0,23],["Colston L","TE",82,84,0,22],["Cole K","TE",78,85,0,27],["Joe T","OL",96,62,2,34],["Darnell W","OL",91,58,0,25],["Jonah J","OL",84,73,0,29],["Garrett B","OL",76,67,0,31],["Braxton J","OL",74,70,0,27],["Ozzy T","OL",73,75,0,25],["Jeffery S","DL",97,99,2,29],["Grady J","DL",81,50,0,33],["Montez S","DL",81,98,0,30],["Dayo O","DL",73,55,0,27],["Austin B","DL",73,94,0,23],["Devin B","LB",86,12,0,28],["TJ E","LB",82,53,0,30],["D'Marco J","LB",71,48,0,28],["Jack S","LB",71,57,0,26],["Jaylon J","CB",86,1,2,27],["Kyler G","CB",83,6,0,26],["Clark P","CB",75,20,0,24],["Coby B","S",77,2,0,27],["Dillon T","S",77,31,0,22],["Cam L","S",75,21,0,29],["Cairo S","K",78,8,0,34]],"CIN":[["Joey B","QB",98,9,1,29],["Joe F","QB",71,16,0,41],["Chase B","RB",84,30,0,26],["Samaje P","RB",76,34,0,31],["Ja'Marr C","WR",99,1,1,26],["Tee H","WR",89,5,2,27],["Andrei I","WR",73,80,0,26],["Colbie Y","WR",70,86,0,22],["Mike G","TE",80,88,0,31],["Drew S","TE",68,89,0,30],["Amarius M","OL",78,71,0,24],["Dalton R","OL",77,66,0,31],["Ted K","OL",76,64,0,33],["Orlando B","OL",75,75,0,30],["Dylan F","OL",72,63,0,23],["Connor L","OL",69,65,0,22],["Dexter L","DL",93,97,2,29],["Jonathan A","DL",87,93,2,31],["Boye M","DL",81,53,0,27],["Cashius H","DL",77,55,0,23],["BJ H","DL",76,92,0,31],["Demetrius K","LB",75,44,0,26],["Barrett C","LB",71,49,0,24],["Oren B","LB",69,42,0,31],["Jack K","LB",67,45,0,25],["DJ T","CB",84,0,0,25],["Daxton H","CB",78,23,0,26],["Josh N","CB",71,28,0,25],["Jordan B","S",79,27,0,25],["Bryan C","S",79,6,0,27],["Kyle D","S",76,29,0,30],["Evan M","K",82,2,0,27]],"CLE":[["Deshaun W","QB",74,4,0,31],["Shedeur S","QB",69,2,0,24],["Quinshon J","RB",80,10,0,23],["Dylan S","RB",75,22,0,22],["Jerry J","WR",79,3,0,27],["KC C","WR",77,1,0,22],["Denzel B","WR",76,12,0,22],["Tylan W","WR",71,16,0,27],["Harold F","TE",81,44,0,22],["Joe R","TE",66,18,0,24],["Elgton J","OL",82,74,0,30],["Spencer F","OL",81,55,0,21],["Tytus H","OL",80,71,0,30],["Zion J","OL",78,77,0,27],["Austin B","OL",76,58,0,23],["Teven J","OL",75,78,0,28],["Jared V","DL",86,8,2,25],["Mason G","DL",82,94,2,23],["Maliek C","DL",78,96,0,31],["Isaiah M","DL",73,57,0,25],["Sam W","DL",73,54,0,27],["Carson S","LB",84,49,0,23],["Quincy W","LB",84,5,0,30],["Jeremiah O","LB",81,6,0,27],["Justin J","LB",67,17,0,24],["Denzel W","CB",95,21,2,29],["Tyson C","CB",79,7,0,26],["Mekhi B","CB",76,29,0,27],["Grant D","S",82,9,0,28],["Emmanuel M","S",76,28,0,22],["Ronnie H","S",76,33,0,25],["Andre S","K",77,25,0,27]],"DAL":[["Dak P","QB",91,4,1,33],["Sam H","QB",65,16,0,26],["Javonte W","RB",85,33,0,26],["Malik D","RB",73,20,0,28],["CeeDee L","WR",96,88,1,27],["George P","WR",88,3,2,25],["Ryan F","WR",77,19,0,27],["KaVontae T","WR",76,9,0,30],["Jake F","TE",77,87,2,27],["Luke S","TE",69,86,0,28],["Tyler S","OL",90,73,0,25],["Tyler B","OL",85,52,0,22],["Cooper B","OL",79,56,0,25],["Tyler G","OL",79,60,0,25],["Terence S","OL",74,78,0,29],["Broderick J","OL",71,77,0,25],["Quinnen W","DL",92,92,2,28],["Kenny C","DL",78,97,2,31],["Malachi L","DL",78,57,0,23],["Donovan E","DL",77,6,0,23],["Rashan G","DL",77,7,0,28],["DeMarvion O","LB",75,0,0,26],["Jaishawn B","LB",74,55,0,23],["Dee W","LB",72,53,0,26],["Shemar J","LB",70,50,0,22],["Joey P","CB",87,25,0,26],["Decobie D","CB",82,2,0,28],["DaRon B","CB",76,26,0,27],["Jalen T","S",84,34,0,28],["Caleb D","S",81,13,0,21],["Malik H","S",78,24,0,30],["Brandon A","K",83,17,2,31]],"DEN":[["Bo N","QB",81,10,0,26],["Jarrett S","QB",64,8,0,30],["JK D","RB",79,27,0,27],["RJ H","RB",79,12,0,25],["Courtland S","WR",85,14,2,31],["Jaylen W","WR",85,17,0,28],["Troy F","WR",78,11,0,23],["Marvin M","WR",77,19,0,24],["Evan E","TE",78,1,0,32],["Adam T","TE",71,82,0,29],["Garett B","OL",96,72,2,34],["Quinn M","OL",96,77,2,28],["Mike M","OL",82,69,0,31],["Luke W","OL",78,60,0,29],["Ben P","OL",74,74,0,30],["Kage C","OL",71,78,0,22],["Nik B","DL",92,15,2,27],["Zach A","DL",90,99,2,29],["Jonathon C","DL",84,0,2,28],["DJ J","DL",76,93,0,31],["Malcolm R","DL",76,97,0,28],["Alex S","LB",87,49,0,33],["Justin S","LB",75,40,0,30],["Jordan T","LB",64,55,0,25],["Karene R","LB",62,47,0,25],["Pat S","CB",97,2,1,26],["Ja'Quan M","CB",79,29,0,26],["Riley M","CB",79,21,0,26],["Talanoa H","S",89,9,0,27],["Brandon J","S",84,22,0,28],["JL S","S",66,34,0,25],["Wil L","K",78,3,0,32]],"DET":[["Jared G","QB",87,16,2,32],["Jahmyr G","RB",97,0,1,24],["Isiah P","RB",75,10,0,27],["Amon-Ra S","WR",95,14,1,27],["Jameson W","WR",86,1,0,25],["Isaac T","WR",74,18,0,24],["Kendrick L","WR",70,88,0,23],["Sam L","TE",90,87,2,25],["Tyler C","TE",72,83,0,31],["Penei S","OL",98,58,2,26],["Tate R","OL",79,69,0,25],["Blake M","OL",77,76,0,22],["Christian M","OL",75,73,0,26],["Cade M","OL",74,64,0,27],["Ben B","OL",72,78,0,28],["Aidan H","DL",94,97,1,26],["Alim M","DL",87,54,0,26],["Tyleik W","DL",78,91,0,23],["Derrick M","DL",77,8,0,23],["DJ W","DL",76,98,0,29],["Jack C","LB",86,46,0,26],["Derrick B","LB",75,55,0,27],["Malcolm R","LB",74,44,0,27],["Damone C","LB",71,11,0,26],["DJ R","CB",81,4,0,30],["Roger M","CB",76,21,0,26],["Ennis R","CB",72,2,0,24],["Brian B","S",91,32,2,25],["Kerby J","S",88,31,2,26],["Chuck C","S",79,36,0,31],["Jake B","K",76,39,0,27]],"GB":[["Jordan L","QB",86,10,2,28],["Tyrod T","QB",69,6,0,37],["Josh J","RB",88,8,2,28],["Kaleb J","RB",74,26,0,23],["Christian W","WR",86,9,0,27],["Jayden R","WR",80,11,0,26],["Matthew G","WR",80,0,0,23],["Bo M","WR",72,16,0,27],["Tucker K","TE",87,85,0,26],["Luke M","TE",70,88,0,26],["Zach T","OL",87,50,0,27],["Jordan M","OL",75,77,0,25],["Aaron B","OL",73,65,0,29],["Anthony B","OL",71,71,0,25],["Sean R","OL",70,75,0,26],["Jager B","OL",67,52,0,23],["Micah P","DL",98,1,1,27],["Lukas V","DL",83,90,0,25],["Javon H","DL",80,98,0,33],["Devonte W","DL",78,95,2,28],["Dani D","DL",77,51,0,22],["Edgerrin C","LB",80,56,0,25],["Zaire F","LB",78,44,0,30],["Isaiah M","LB",78,58,0,27],["Ty'Ron H","LB",67,59,0,25],["Keisean N","CB",78,25,0,29],["Carrington V","CB",77,24,0,25],["Xavier M","S",92,29,1,27],["Evan W","S",85,33,0,25],["Javon B","S",78,7,0,24],["Trey S","K",74,28,0,23]],"HOU":[["CJ S","QB",85,7,0,25],["Davis M","QB",66,10,0,28],["David M","RB",80,32,0,29],["Woody M","RB",80,4,0,25],["Nico C","WR",90,12,1,27],["Tank D","WR",80,1,0,27],["Jayden H","WR",77,81,0,23],["Kayshon B","WR",77,14,0,24],["Dalton S","TE",88,86,0,30],["Foster M","TE",72,87,0,29],["Braden S","OL",82,71,0,30],["Trent B","OL",79,77,0,33],["Ed I","OL",77,69,0,27],["Keylan R","OL",74,66,0,23],["Wyatt T","OL",74,75,0,31],["Aireontae E","OL",73,79,0,24],["Will A","DL",95,51,2,25],["Danielle H","DL",90,55,2,32],["Sheldon R","DL",80,98,0,32],["Tommy T","DL",77,72,0,27],["Kayden M","DL",74,93,0,21],["Azeez A","LB",83,0,0,29],["Henry T","LB",75,39,0,25],["EJ S","LB",75,45,0,31],["Wade W","LB",68,30,0,23],["Derek S","CB",92,24,1,25],["Jalen P","CB",86,5,0,27],["Kamari L","CB",85,3,0,23],["Calen B","S",78,2,0,23],["Reed B","S",78,6,0,27],["Kamari R","S",72,27,0,22],["Ka'imi F","K",81,15,0,32]],"IND":[["Danny J","QB",72,17,0,29],["Anthony R","QB",68,5,0,24],["Jonathan T","RB",93,28,1,27],["DJ G","RB",70,21,0,23],["Alec P","WR",84,14,0,26],["Nick W","WR",73,12,0,29],["Ashton D","WR",72,16,0,29],["Anthony G","WR",69,6,0,25],["Tyler W","TE",82,84,2,24],["Mo A","TE",71,81,0,33],["Bernhard R","OL",86,79,0,29],["Tanor B","OL",83,60,0,24],["Matt G","OL",78,71,0,25],["Jalen F","OL",70,62,0,23],["Jalen T","OL",70,75,0,24],["Sedrick V","OL",66,63,0,25],["Grover S","DL",83,90,0,33],["Laiatu L","DL",80,97,0,25],["Adetomiwa A","DL",75,95,0,25],["Arden K","DL",75,98,0,30],["JT T","DL",74,91,0,23],["Akeem D","LB",75,51,0,29],["CJ A","LB",73,53,0,21],["Jaylon C","LB",69,57,0,25],["Austin A","LB",68,58,0,26],["Sauce G","CB",88,1,2,26],["Charvarius W","CB",86,7,2,30],["Cam T","CB",80,29,0,27],["Camryn B","S",83,0,0,28],["AJ H","S",74,25,0,22],["Jonathan O","S",71,38,0,31],["Spencer S","K",84,3,0,27]],"JAX":[["Trevor L","QB",87,16,0,27],["Quinn E","QB",63,10,0,23],["Bhayshul T","RB",82,33,0,24],["Chris R","RB",73,24,0,26],["Parker W","WR",84,11,0,24],["Jakobi M","WR",82,3,0,30],["Brian T","WR",79,7,0,24],["Josh C","WR",68,19,0,23],["Brenton S","TE",79,85,0,26],["Nate B","TE",67,87,0,24],["Ezra C","OL",80,76,0,28],["Anton H","OL",79,77,0,24],["Walker L","OL",78,72,0,27],["Robert H","OL",74,73,0,28],["Emmanuel P","OL",73,75,0,23],["Patrick M","OL",73,65,0,29],["Josh H","DL",89,41,1,29],["Travon W","DL",80,44,2,26],["Arik A","DL",76,91,0,33],["Davon H","DL",75,52,0,29],["Wesley W","DL",73,90,0,23],["Foyesade O","LB",87,23,2,31],["Dennis G","LB",74,47,0,32],["Ventrell M","LB",73,51,0,27],["Parker H","LB",66,53,0,23],["Travis H","CB",85,12,2,23],["Jourdan L","CB",82,2,0,31],["Jarrian J","CB",77,4,0,25],["Antonio J","S",81,6,0,25],["Eric M","S",74,29,0,32],["Caleb R","S",73,27,0,23],["Cam L","K",80,39,2,23]],"KC":[["Patty M","QB",93,15,1,31],["Justin F","QB",70,6,0,27],["Kenneth W","RB",95,9,2,26],["Brashard S","RB",74,24,0,23],["Rashee R","WR",85,4,0,26],["Xavier W","WR",79,1,0,23],["Tyquan T","WR",76,2,0,26],["Jalen R","WR",71,11,0,23],["Travis K","TE",93,87,2,37],["Noah G","TE",73,83,0,27],["Creed H","OL",96,52,2,27],["Trey S","OL",93,65,2,27],["Josh S","OL",81,71,0,23],["Kingsley S","OL",76,76,0,23],["Jaylon M","OL",72,77,0,28],["Kahlil B","OL",68,70,0,24],["Chris J","DL",94,95,1,32],["George K","DL",83,56,0,25],["Mason T","DL",77,51,0,22],["Peter W","DL",75,99,0,21],["Felix A","DL",74,91,0,24],["Drue T","LB",89,23,0,31],["Nick B","LB",84,32,0,26],["Jeffrey B","LB",67,31,0,23],["Cooper M","LB",64,44,0,24],["Mansoor D","CB",83,5,0,22],["Nohl W","CB",80,20,0,24],["L'Jarius S","CB",79,38,2,29],["Alohi G","S",80,17,0,29],["Chamarri C","S",76,27,0,26],["Jaden H","S",76,21,0,24],["Harrison B","K",79,7,0,31]],"LV":[["Fernando M","QB",73,15,0,23],["Aidan O","QB",67,12,0,28],["Ashton J","RB",83,2,0,22],["Mike W","RB",73,4,0,23],["Tre T","WR",78,1,0,25],["Jalen N","WR",76,9,0,27],["Jack B","WR",73,18,0,23],["Cody W","WR",69,82,0,27],["Brock B","TE",96,89,1,23],["Michael M","TE",80,87,0,25],["Kolton M","OL",93,74,0,31],["Tyler L","OL",88,65,0,26],["Jackson P","OL",78,58,0,23],["Delmar G","OL",72,71,0,24],["Trey Z","OL",72,66,0,23],["Charles G","OL",70,60,0,24],["Maxx C","DL",97,98,1,29],["Kwity P","DL",78,95,0,27],["Malcolm K","DL",78,51,0,28],["Keyron C","DL",75,42,0,23],["Adam B","DL",73,69,0,32],["Quay W","LB",81,7,0,26],["Nakobe D","LB",79,17,0,25],["Tommy E","LB",69,44,0,25],["Segun O","LB",65,50,0,27],["Taron J","CB",84,3,0,30],["Eric S","CB",78,5,0,27],["Darien P","CB",74,26,0,25],["Jeremy C","S",82,11,0,28],["Treydan S","S",76,31,0,24],["Isaiah P","S",71,20,0,27],["Matt G","K",75,14,0,32]],"LAC":[["Justin H","QB",77,10,2,28],["Trey L","QB",64,5,0,26],["Omarion H","RB",81,8,0,23],["Kimani V","RB",77,28,0,25],["Ladd M","WR",81,15,2,24],["Quentin J","WR",78,1,0,25],["Tre H","WR",73,9,0,24],["Brenen T","WR",72,89,0,22],["David N","TE",77,83,0,30],["Oronde G","TE",75,86,0,23],["Rashawn S","OL",91,70,2,27],["Joe A","OL",86,76,0,23],["Tyler B","OL",80,63,0,28],["Jake S","OL",73,66,0,23],["Cole S","OL",72,69,0,28],["Trevor P","OL",71,75,0,27],["Khalil M","DL",86,52,2,35],["Akheem M","DL",80,90,0,25],["Tuli T","DL",79,45,0,24],["Teair T","DL",77,93,0,29],["Dalvin T","DL",75,94,0,32],["Daiyan H","LB",82,57,0,26],["Denzel P","LB",76,6,0,33],["Del'Shawn P","LB",72,53,0,29],["Troy D","LB",71,43,0,29],["Donte J","CB",82,26,0,30],["Tarheeb S","CB",81,4,0,24],["Cam H","CB",74,20,0,25],["Derwin J","S",93,3,1,30],["Tony J","S",82,23,0,34],["Elijah M","S",79,2,0,27],["Cameron D","K",80,11,0,26]],"LAR":[["Matty S","QB",97,9,1,38],["Ty S","QB",71,15,0,23],["Kyren W","RB",90,23,2,26],["Blake C","RB",81,24,0,25],["Puka N","WR",98,12,1,25],["Davante A","WR",91,17,2,33],["Tutu A","WR",75,8,0,26],["Jordan W","WR",72,88,0,25],["Tyler H","TE",76,89,0,33],["Colby P","TE",73,84,0,27],["Kevin D","OL",89,69,0,29],["Alaric J","OL",85,77,0,28],["Steve A","OL",82,73,0,26],["Coleman S","OL",81,65,0,31],["Warren M","OL",73,71,0,25],["Beaux L","OL",71,50,0,25],["Myles G","DL",99,95,1,30],["Aaron D","DL",95,99,0,35],["Byron Y","DL",85,0,2,28],["Kobie T","DL",85,91,0,27],["Poona F","DL",83,97,0,30],["Nate L","LB",83,53,0,27],["Omar S","LB",78,48,0,25],["Shaun D","LB",69,56,0,24],["Grant S","LB",64,44,0,27],["Trent M","CB",96,22,2,26],["Jaylen W","CB",81,35,0,27],["Emmanuel F","CB",75,1,0,25],["Quentin L","S",84,37,0,27],["Kamren C","S",83,3,0,27],["Kamren K","S",79,5,0,23],["Blake G","K",73,19,0,27]],"MIA":[["Malik Wi","QB",72,2,0,27],["Kyle M","QB",65,14,0,24],["De'Von A","RB",86,28,2,25],["Ollie G","RB",78,0,0,22],["Caleb D","WR",74,7,0,22],["Jalen T","WR",73,1,0,27],["Malik Wa","WR",73,6,0,25],["Chris B","WR",71,18,0,22],["Greg D","TE",72,85,0,26],["Justin J","TE",68,80,0,22],["Aaron B","OL",90,55,0,29],["Patrick P","OL",81,52,0,25],["Kadyn P","OL",77,74,0,21],["Austin J","OL",73,73,0,27],["Christian H","OL",71,64,0,26],["Caedan W","OL",68,77,0,26],["Zach S","DL",83,92,0,31],["Chop R","DL",78,44,0,23],["Josh U","DL",76,9,0,28],["Kenneth G","DL",75,78,0,22],["Trey M","DL",72,17,0,23],["Jordyn B","LB",87,20,0,29],["Jacob R","LB",80,10,0,23],["Willie G","LB",72,40,0,28],["Ronnie H","LB",71,56,0,29],["Chris J","CB",77,3,0,22],["Darrell B","CB",74,22,0,28],["Julius B","CB",73,8,0,26],["Michael T","S",72,16,0,23],["Kyle L","S",71,19,0,22],["Dante T","S",71,11,0,23],["Zane G","K",74,31,0,31]],"MIN":[["Kirk C","QB",77,8,0,38],["Kyler M","QB",76,1,0,29],["Aaron J","RB",83,33,0,32],["Jordan M","RB",80,27,0,27],["Justin J","WR",97,18,1,27],["Jordan A","WR",83,3,0,24],["Jauan J","WR",81,14,0,29],["Tai F","WR",71,13,0,23],["TJ H","TE",84,87,0,29],["Josh O","TE",73,84,0,29],["Christian D","OL",90,71,2,27],["Brian O","OL",88,75,0,31],["Will F","OL",77,76,0,28],["Donovan J","OL",76,74,0,24],["Blake B","OL",72,64,0,29],["Caleb T","OL",72,78,0,23],["Andrew V","DL",85,43,0,31],["Jalen R","DL",84,61,0,27],["Dallas T","DL",83,15,2,23],["Caleb B","DL",75,95,0,23],["Levi R","DL",74,50,0,25],["Blake C","LB",89,51,0,30],["Eric W","LB",78,55,0,32],["Ivan P","LB",76,0,0,25],["Jake G","LB",74,41,0,23],["Byron M","CB",89,7,0,28],["Isaiah R","CB",87,2,0,28],["James P","CB",77,23,0,30],["Josh M","S",82,44,0,28],["Jakobe T","S",73,6,0,23],["Jay W","S",71,24,0,26],["Will R","K",84,16,0,25]],"NE":[["Drake M","QB",89,10,1,24],["Tommy D","QB",61,16,0,28],["Rhamondre S","RB",84,38,0,28],["TreVeyon H","RB",80,32,0,24],["AJ B","WR",86,1,2,29],["Demario D","WR",79,3,0,25],["Romeo D","WR",79,87,0,26],["Mack H","WR",77,13,0,33],["Hunter H","TE",85,85,0,31],["Eli R","TE",71,82,0,23],["Michael O","OL",86,71,0,28],["Alijah V","OL",83,75,0,27],["Morgan M","OL",82,76,0,35],["Will C","OL",82,66,0,22],["Caleb L","OL",76,74,0,21],["Matt P","OL",74,65,0,31],["Milton W","DL",86,97,2,27],["Christian B","DL",82,90,0,27],["Harold L","DL",81,2,0,30],["Gabe J","DL",79,50,0,22],["Dre'Mont J","DL",77,5,0,29],["Robert S","LB",83,14,0,30],["Christian E","LB",82,53,0,27],["Darius M","LB",69,54,0,25],["Namdi O","LB",67,48,0,24],["Christian G","CB",94,0,1,24],["Carlton D","CB",85,7,0,29],["Marcus J","CB",80,25,0,27],["Kevin B","S",85,31,0,33],["Craig W","S",81,4,0,25],["Dell P","S",69,24,0,25],["Andres B","K",74,8,0,23]],"NO":[["Tyler S","QB",81,6,0,27],["Spencer R","QB",69,2,0,25],["Travis E","RB",84,3,0,27],["Alvin K","RB",79,41,0,31],["Chris O","WR",89,12,0,26],["Devaughn V","WR",76,14,0,28],["Jordyn T","WR",76,0,0,22],["Bryce L","WR",70,18,0,23],["Juwan J","TE",80,83,0,30],["Noah F","TE",74,87,0,28],["Erik M","OL",87,78,0,29],["Kelvin B","OL",78,71,0,22],["David E","OL",77,76,0,29],["Cesar R","OL",76,51,0,27],["Taliese F","OL",76,75,0,24],["Dillon R","OL",72,77,0,28],["Chase Y","DL",88,99,0,27],["Cameron J","DL",79,94,0,37],["Carl G","DL",79,96,0,29],["Davon G","DL",76,92,0,31],["Anfernee J","DL",75,33,0,29],["Kaden E","LB",83,55,0,31],["Pete W","LB",75,20,0,27],["Danny S","LB",71,28,0,23],["Jaylan F","LB",67,53,0,25],["Martin E","CB",78,22,0,26],["Kool-Aid M","CB",76,1,0,23],["Quincy R","CB",73,29,0,25],["Justin R","S",81,21,0,29],["Jonas S","S",76,7,0,24],["Julian B","S",76,23,0,28],["Charlie S","K",73,39,0,25]],"NYG":[["Jaxson D","QB",78,6,0,23],["JJ M","QB",73,18,0,23],["Cam S","RB",83,44,0,24],["Tyrone T","RB",78,29,0,26],["Malik N","WR",88,1,2,23],["Darnell M","WR",76,17,0,28],["Calvin A","WR",75,82,0,27],["Malachi F","WR",74,88,0,23],["Isaiah L","TE",83,9,0,26],["Theo J","TE",77,84,0,25],["Andrew T","OL",95,78,2,27],["Jermaine E","OL",83,72,0,31],["Francis M","OL",79,65,0,21],["Jon R","OL",75,76,0,29],["Aaron S","OL",69,64,0,32],["JC D","OL",67,74,0,24],["Brian B","DL",88,0,2,28],["Abdul C","DL",84,3,2,23],["DJ R","DL",84,98,0,32],["Kayvon T","DL",78,5,0,25],["Shelby H","DL",77,93,0,35],["Arvell R","LB",84,52,0,21],["Tremaine E","LB",82,49,0,28],["Micah M","LB",75,41,0,26],["Malik H","LB",73,54,0,28],["Deonte B","CB",82,2,0,25],["Greg N","CB",80,20,0,26],["Andru P","CB",79,22,0,24],["Jevon H","S",87,8,0,26],["Ar'Darius W","S",77,24,0,27],["Tyler N","S",77,27,0,25],["Dominic Z","K",75,34,0,23]],"NYJ":[["Geno S","QB",75,7,0,36],["Cade K","QB",67,10,0,23],["Breece H","RB",86,20,0,25],["Braelon A","RB",79,0,0,22],["Garrett W","WR",87,5,2,26],["Adonai M","WR",77,15,0,24],["Omar C","WR",77,11,0,22],["Tim P","WR",74,17,0,32],["Kenyon S","TE",76,16,0,21],["Mason T","TE",75,85,0,22],["Armand M","OL",83,70,0,22],["Joe T","OL",83,66,0,25],["Dylan P","OL",79,64,0,27],["Olu F","OL",76,74,0,23],["Jordan M","OL",73,67,0,28],["Josh M","OL",72,71,0,28],["David B","DL",81,31,2,23],["T'Vondre S","DL",79,99,0,25],["Will M","DL",78,9,0,27],["David O","DL",77,93,0,34],["Harrison P","DL",77,97,0,30],["Demario D","LB",90,56,1,37],["Jamien S","LB",79,44,0,26],["Trevin W","LB",74,49,0,23],["Francisco M","LB",66,51,0,23],["Brandon S","CB",77,21,0,28],["Jarvis B","CB",76,2,0,25],["Azareye'h T","CB",75,1,0,22],["Minkah F","S",90,29,2,30],["Dane B","S",78,6,0,25],["Andre C","S",77,8,0,26],["Jason S","K",76,19,0,31]],"PHI":[["Jalen H","QB",79,1,1,28],["Joe M","QB",70,14,0,26],["Saquon B","RB",89,26,1,29],["Tank B","RB",77,8,0,25],["DeVonta S","WR",92,6,2,28],["Dontayvion W","WR",78,13,0,25],["Makai L","WR",77,9,0,22],["Marquise B","WR",75,0,0,29],["Dallas G","TE",89,88,2,31],["Eli S","TE",72,87,0,23],["Jordan M","OL",90,68,2,29],["Landon D","OL",82,69,0,28],["Tyler S","OL",74,56,0,26],["Markel B","OL",72,72,0,23],["Micah M","OL",68,76,0,24],["Drew K","OL",65,66,0,24],["Jalen C","DL",86,98,2,25],["Jonathan G","DL",84,52,2,29],["Nolan S","DL",82,3,2,25],["Moro O","DL",77,97,0,25],["Arnold E","DL",76,17,0,27],["Zack B","LB",93,53,2,30],["Jihaad C","LB",79,11,0,22],["Jeremiah T","LB",71,54,0,24],["Smael M","LB",69,42,0,23],["Quinyon M","CB",90,27,2,25],["Cooper D","CB",84,33,0,23],["Tariq W","CB",80,2,0,27],["Marcus E","S",75,29,0,30],["Michael C","S",74,35,0,27],["Andrew M","S",74,24,0,24],["Jake E","K",80,4,0,31]],"PIT":[["Aaron R","QB",80,8,0,42],["Drew A","QB",69,16,0,22],["Jaylen W","RB",87,30,0,28],["Rico D","RB",81,13,2,28],["DK M","WR",82,4,2,28],["Michael P","WR",81,11,0,29],["Germie B","WR",75,17,0,22],["Roman W","WR",72,14,0,25],["Pat F","TE",79,88,0,28],["Darnell W","TE",78,80,0,25],["Zach F","OL",89,54,0,25],["Mason M","OL",81,66,0,26],["Troy F","OL",76,76,0,25],["Max I","OL",75,71,0,23],["Gennings D","OL",72,73,0,23],["Brock H","OL",69,67,0,27],["TJ W","DL",96,90,1,32],["Cam H","DL",95,97,1,37],["Alex H","DL",87,56,2,29],["Derrick H","DL",78,99,0,23],["Nick H","DL",78,51,2,25],["Patrick Q","LB",79,6,0,27],["Payton W","LB",79,41,0,26],["Cole H","LB",75,55,0,30],["Carson B","LB",64,44,0,24],["Jamel D","CB",88,35,0,30],["Sean M","CB",77,27,0,29],["Brandin E","CB",75,26,0,29],["Jalen R","S",92,5,1,32],["DeShon E","S",80,25,0,29],["Jaquan B","S",80,3,0,27],["Chris B","K",85,9,0,35]],"SF":[["Brock P","QB",92,13,2,26],["Mac J","QB",75,10,0,28],["Christian M","RB",97,23,1,30],["Kaelon B","RB",74,26,0,24],["Mike E","WR",91,5,1,33],["Ricky P","WR",80,1,0,26],["Christian K","WR",78,3,0,30],["De'Zhaun S","WR",76,7,0,23],["George K","TE",97,85,1,33],["Jake T","TE",72,88,0,27],["Trent W","OL",97,71,2,38],["Colton M","OL",85,68,0,30],["Dominick P","OL",83,77,0,26],["Jake B","OL",78,64,0,34],["Jarrett P","OL",70,58,0,27],["Connor C","OL",69,75,0,23],["Nick B","DL",92,97,1,29],["DeForest B","DL",91,99,2,32],["Mykel W","DL",77,98,0,22],["Osa O","DL",77,92,0,28],["Keion W","DL",73,56,0,27],["Fred W","LB",98,54,1,30],["Dre G","LB",85,57,0,29],["Nick M","LB",71,45,0,24],["Tatum B","LB",70,48,0,25],["Deommodore L","CB",83,2,0,27],["Renardo G","CB",78,0,0,26],["Nate H","CB",76,22,0,27],["Malik M","S",78,6,0,24],["Marques S","S",76,36,0,24],["Ji'Ayir B","S",74,27,0,26],["Eddy P","K",77,18,0,31]],"SEA":[["Sammy D","QB",84,14,0,29],["Drew L","QB",68,2,0,30],["Zach C","RB",82,26,0,25],["Emanuel W","RB",76,23,0,27],["Jax S","WR",99,11,1,24],["Cooper K","WR",82,10,0,33],["Rashid S","WR",78,22,0,28],["Tory H","WR",75,15,0,24],["AJ B","TE",75,88,0,24],["Elijah A","TE",71,18,0,23],["Quenton N","OL",95,53,2,30],["Charles C","OL",85,67,0,26],["Abraham L","OL",84,72,0,28],["Grey Z","OL",79,76,0,24],["Jalen S","OL",73,61,0,27],["Anthony B","OL",72,75,0,25],["Leonard W","DL",89,99,2,32],["DeMarcus L","DL",87,0,2,34],["Byron M","DL",85,91,0,24],["Jarran R","DL",78,90,0,34],["Uchenna N","DL",77,7,0,30],["Ernest J","LB",85,13,0,27],["Drake T","LB",76,32,0,26],["Tyrice K","LB",75,48,0,25],["Chazz S","LB",64,44,0,29],["Devon W","CB",93,21,2,26],["Josh J","CB",77,29,0,28],["Nehemiah P","CB",74,28,0,25],["Nick E","S",86,3,0,22],["Julian L","S",85,20,0,28],["Bud C","S",75,9,0,23],["Jason M","K",82,5,0,35]],"TB":[["Baker M","QB",78,6,2,31],["Jalon D","QB",61,10,0,24],["Bucky I","RB",90,7,2,24],["Kenneth G","RB",79,1,0,27],["Emeka E","WR",81,2,0,24],["Chris G","WR",80,14,0,30],["Jalen M","WR",74,11,0,25],["Tez J","WR",73,15,0,24],["Cade O","TE",75,88,0,27],["Ko K","TE",65,41,0,28],["Tristan W","OL",94,78,2,27],["Luke G","OL",84,67,0,28],["Graham B","OL",79,62,0,24],["Cody M","OL",77,69,0,27],["Ben B","OL",74,68,0,28],["Billy S","OL",69,75,0,23],["Vita V","DL",94,50,1,31],["YaYa D","DL",79,0,2,27],["A'Shawn R","DL",78,91,0,31],["Rueben B","DL",78,3,2,22],["Calijah K","DL",77,94,0,25],["Alex A","LB",80,34,0,32],["Josiah T","LB",77,45,0,21],["Christian R","LB",73,52,0,29],["SirVocea D","LB",72,8,0,26],["Zyon M","CB",83,27,0,27],["Jacob P","CB",81,25,0,22],["Benjamin M","CB",75,21,0,22],["Antoine W","S",93,31,1,28],["Tykee S","S",80,23,0,25],["Miles K","S",67,29,0,33],["Chase M","K",81,4,0,30]],"TEN":[["Cam W","QB",74,1,0,24],["Mitch T","QB",65,10,0,32],["Tony P","RB",85,20,0,29],["Tyjae S","RB",77,2,0,25],["Wan'Dale R","WR",82,4,0,25],["Carnell T","WR",79,14,0,21],["Calvin R","WR",78,0,0,32],["Elic A","WR",76,5,0,23],["Gunnar H","TE",72,84,0,24],["Daniel B","TE",70,82,0,26],["Peter S","OL",84,77,0,25],["JC L","OL",80,55,0,23],["Dan M","OL",72,75,0,28],["Fernando C","OL",70,66,0,23],["Austin S","OL",68,51,0,31],["Jackson S","OL",68,64,0,23],["John F","DL",80,91,0,30],["Keldric F","DL",78,15,0,21],["Jacob M","DL",76,57,0,31],["Jermaine J","DL",76,11,0,27],["Femi O","DL",73,7,0,23],["Cedric G","LB",78,33,0,24],["Cody B","LB",78,50,0,30],["Anthony H","LB",76,53,0,21],["Mohamoud D","LB",70,44,0,25],["Cordale F","CB",80,18,0,25],["Alontae T","CB",78,24,0,28],["Jaylon J","CB",73,42,0,24],["Kevin W","S",75,23,0,23],["Tony A","S",75,29,0,27],["Terrell B","S",71,38,0,28],["Joey S","K",75,6,0,30]],"WAS":[["Jayden D","QB",78,5,2,26],["Marcus M","QB",72,8,0,33],["Jacory C","RB",80,22,0,25],["Rachaad W","RB",77,1,0,27],["Terry M","WR",88,17,1,31],["Antonio W","WR",77,14,0,22],["Jaylin L","WR",75,83,0,24],["Treylon B","WR",74,13,0,26],["Chig O","TE",74,85,0,27],["Ben S","TE",69,82,0,24],["Laremy T","OL",94,78,2,32],["Sam C","OL",88,76,0,27],["Andrew W","OL",75,71,0,32],["Chris P","OL",73,75,0,28],["Josh C","OL",73,72,0,23],["Brandon C","OL",72,74,0,26],["Daron P","DL",84,94,0,29],["Odafe O","DL",80,98,0,28],["Dorance A","DL",79,92,0,29],["Charles O","DL",76,90,0,29],["Jer'Zhan N","DL",76,95,0,24],["Leo C","LB",82,54,0,26],["Sonny S","LB",81,52,0,22],["Frankie L","LB",80,4,0,30],["Jordan M","LB",68,58,0,25],["Rasul D","CB",82,26,0,32],["Amik R","CB",79,2,0,28],["Trey A","CB",78,23,0,24],["Nick C","S",81,25,0,25],["Quan M","S",77,20,0,26],["Jeremy R","S",73,39,0,30],["Drew S","K",74,19,0,23]]};
 // Sound-alike names, in the same order as REAL (shown when the player picks "Sound-alike names"),
 // and REALH: a fingerprint of each real name, only used to convert saves from the version that showed real names.
@@ -471,7 +666,7 @@ function completeStep(played){const games=currentGames(),reg=S.phase==='regular'
   else if(reg)S.news.unshift('Week '+(S.week+1)+': bye week.');
   if(reg){
     for(const g of games){const H=S.teams[g.h],A=S.teams[g.a];H.pf+=g.hs;H.pa+=g.as;A.pf+=g.as;A.pa+=g.hs;if(g.hs>g.as){H.w++;A.l++;}else{A.w++;H.l++;}}
-    S.week++;if(Math.random()<0.35)aiSignings(1,pick(S.teams));
+    S.week++;if(window.TNTBridge)TNTBridge.season(S.week,S.schedule.length);if(Math.random()<0.35)aiSignings(1,pick(S.teams));
     if(S.week>=S.schedule.length)startPlayoffs();else if(S.week<TRADE_DEADLINE)makeOffer();else{if(S.week===TRADE_DEADLINE)S.news.unshift('The trade deadline has passed. Trades reopen in the offseason.');S.offer=null;}}
   else finishRound();
   if(S.news.length>16)S.news.length=16;save();}
@@ -2199,7 +2394,7 @@ function updWho(g){if(g.pro){const pe=proEnt(),k=g.phase+'|'+(!!pe&&g.carrier===
   if(zl.length)w+=(w?'<br>':'')+'<span class="zl"><em class="xf">X</em> In the zone: '+zl.join(', ')+'</span>';
   if(g.pro&&g.ps[g.pro.id]&&g.phase!=='live')w+=(w?'<br>':'')+'<span class="zl"><b>You</b> · '+esc(proLine(g.ps[g.pro.id],g.pro.pos))+'</span>';
   if(w!==whoStr){whoStr=w;const el=document.getElementById('who');el.innerHTML=w;el.hidden=!w;}}
-function frame(ts){if(!gm){rafOn=false;return;}const real=Math.min(0.05,(ts-lastTs)/1000||0.016);lastTs=ts;const dt=real*(SPEED_X[S.speed]||1);
+function frame(ts){if(!gm){rafOn=false;return;}if(window.TNTBridge&&TNTBridge.paused){lastTs=ts;renderGame();requestAnimationFrame(frame);return;}const real=Math.min(0.05,(ts-lastTs)/1000||0.016);lastTs=ts;const dt=real*(SPEED_X[S.speed]||1);
   const n=Math.max(1,Math.ceil(dt/0.0167)),h=dt/n;
   if(gm.phase==='replay'){stepReplay(real);rpCam(real);updHud();renderGame();requestAnimationFrame(frame);return;}
   for(let i=0;i<n&&gm;i++){gm.now+=h;const ph=gm.phase;if(ph==='live'){if(gm.ko)stepKO(h);else stepLive(h);}else if(ph==='dead')stepDead(h);else if(ph==='kanim')stepKickAnim(h);if(!gm)break;for(const e of gm.ents)updPose(e,h);}
@@ -2318,11 +2513,11 @@ const phaseName=()=>S.phase==='regular'?'Week '+(S.week+1):S.phase==='playoffs'?
 const FILT={ALL:POS_ORDER,OFF:['QB','RB','WR','TE','OL'],DEF:['DL','LB','CB','S'],K:['K']};
 
 function render(){if(!S||S.user<0){renderPick();return;}if(isPro()){renderPro();return;}const U=S.teams[S.user];
-  $('#top').innerHTML=`<div class="who">${sw(U,'lg')}<div><h1>${U.name}</h1><div class="meta">${S.season} · ${phaseName()} · ${U.w}-${U.l}</div></div></div><div class="stat">${S.tp}<small>Training points</small></div>`;
+  $('#top').innerHTML=`<div class="who">${sw(U,'lg')}<div><h1>${U.name}</h1><div class="meta">${S.season} · ${phaseName()} · ${U.w}-${U.l}</div></div></div><div class="stat">${S.tp}<small>Training points</small></div>`+fbTop();
   $('#tabs').hidden=false;$('#tabs').innerHTML=[['home',S.phase==='draft'?'Draft':'Home'],['roster','Roster'],['trade','Trades'],['league','League']].map(t=>`<button data-a="tab" data-t="${t[0]}" class="${UI.tab===t[0]?'on':''}">${t[1]}</button>`).join('');
   ({home:vHome,roster:vRoster,trade:vTrade,league:vLeague})[UI.tab]();}
 function renderPick(){if(!S)newLeague();
-  $('#top').innerHTML='<div class="who"><div><h1>City Gridiron</h1><div class="meta">'+(UI.proNew?'Create your player':'Pick a city to run')+'</div></div></div>';$('#tabs').hidden=true;
+  $('#top').innerHTML='<div class="who"><div><h1>City Gridiron</h1><div class="meta">'+(UI.proNew?'Create your player':'Pick a city to run')+'</div></div></div>'+fbTop();$('#tabs').hidden=true;
   if(UI.proNew){$('#view').innerHTML='<div class="wrap">'+proNewCard()+'</div>';return;}
   let h='<div class="wrap">'+namesCard()+quickCard()+'<section class="card hero"><p class="eyebrow">New franchise</p><h2>Thirty-two cities. One trophy.</h2><p class="muted">Call the plays, throw the passes, play defense, and trade players and draft picks to build a winner. Pick your city below.</p></section>'+proCard();
   for(const c of ['A','N']){h+=`<section><h3>${CONF[c]} conference</h3><div class="pick">`;
@@ -2554,6 +2749,7 @@ function renderPanel(){const p=$('#panel'),g=gm;if(!g){p.innerHTML='';return;}le
 // ===== actions =====
 function togAsset(arr,id){const tr=UI.tr,i=arr.indexOf(id),mine=arr===tr.give||arr===tr.gk,n=mine?tr.give.length+tr.gk.length:tr.get.length+tr.tk.length;if(i>=0)arr.splice(i,1);else if(n<5)arr.push(id);tr.msg='';render();}
 const ACT={
+  feedback(){sendFeedback();},
   names(d){setNamePref(d.k);applyNames();save();render();},
   pick(d){UI.two=null;S.user=+d.id;UI.tab='home';S.news=['Welcome to '+S.teams[S.user].name+'. Trades are open until week '+TRADE_DEADLINE+'. You start with '+S.tp+' training points.'];save();render();},
   tab(d){UI.tab=d.t;UI.confirmNew=false;UI.tr.msg='';UI.edMsg='';UI.faMsg='';render();$('#view').scrollTop=0;},
@@ -2648,7 +2844,7 @@ function proNewCard(){const P=pnDef(),teams=S.teams.slice().sort((a,b)=>a.name.l
 function proSettingsRow(){const sel=(id,lab,opts,cur)=>`<span class="setp"><label for="${id}">${lab}</label><select id="${id}">${opts.map((o,i)=>`<option value="${i}"${cur===i?' selected':''}>${o}</option>`).join('')}</select></span>`;
   return '<div class="row set">'+sel('setDiff','Difficulty',DIFFS,S.diff)+sel('setSpeed','Game speed',SPEEDS,S.speed)+sel('setTalk','Broadcast crew',['Off','Captions only','Voice and captions','Voice only'],S.talk)+sel('setQlen','Quarter length',QLENS.map(m=>m+' minutes'),Math.max(0,QLENS.indexOf(S.qlen||4)))+sel('setNames','Player names',['Made-up names','Sound-alike names'],namePref()==='real'?1:0)+'</div>';}
 function renderPro(){if(onRoad())return renderRoad();const p=proP(),P=S.pro,T=S.teams[S.user];P.xfs=P.xfs||[];if(!p){S.pro.done={n:'Unknown',pos:'WR',ovr:0,num:0,hist:[],aw:[]};}
-  const q=proP();$('#top').innerHTML=`<div class="who">${sw(T,'lg')}<div><h1>${esc(q.n)}</h1><div class="meta">#${q.num} · ${q.pos} · ${P.done?'Retired':esc(T.name)} · ${S.season} · ${phaseName()}</div></div></div><div class="stat">${q.ovr}<small>Overall</small></div>`;
+  const q=proP();$('#top').innerHTML=`<div class="who">${sw(T,'lg')}<div><h1>${esc(q.n)}</h1><div class="meta">#${q.num} · ${q.pos} · ${P.done?'Retired':esc(T.name)} · ${S.season} · ${phaseName()}</div></div></div><div class="stat">${q.ovr}<small>Overall</small></div>`+fbTop();
   if(!['home','team','league'].includes(UI.tab))UI.tab='home';
   $('#tabs').hidden=false;$('#tabs').innerHTML=[['home','Career'],['team','Team'],['league','League']].map(t=>`<button data-a="tab" data-t="${t[0]}" class="${UI.tab===t[0]?'on':''}">${t[1]}</button>`).join('');
   ({home:vPro,team:vProTeam,league:vLeague})[UI.tab]();}
@@ -2703,7 +2899,7 @@ function proTradeCard(p){if(S.pro.done||onRoad())return '';const open=proTradeOp
   return `<section class="card"><h3>Request a trade</h3>${!open?`<p class="muted">The trade deadline has passed. Requests open again in the offseason.</p>`:su.length?`<p class="muted">These teams would start you at ${p.pos}. Trades go through right away.</p><div class="row"><select id="proTeam" aria-label="Team to be traded to">${su.map(t=>`<option value="${t.id}">${t.name} (${t.w}-${t.l}, ${ratings(t).ovr} OVR)</option>`).join('')}</select><button class="btn ghost sm" data-a="proTr">Request trade</button></div>`:`<p class="muted">No team would start you over their ${p.pos} right now. Raise your overall and ask again.</p>`}</section>`;}
 function roadHist(){const R=S.road,p=proP();if(!R||!R.car||!R.car.length)return '';return `<div class="scroll"><table class="tbl sm"><thead><tr><th class="l">Season</th><th>Record</th><th>GP</th><th class="l">Stats</th><th class="l">Honors</th></tr></thead><tbody>${R.car.map(c=>`<tr><td class="l">${esc(c.lab)}</td><td>${c.w}-${c.l}</td><td>${c.gp}</td><td class="l">${esc(proLine(c.st,p.pos))}</td><td class="l">${c.aw.map(esc).join(', ')||'—'}</td></tr>`).join('')}</tbody></table></div>`;}
 function renderRoad(){const R=S.road,p=proP(),T=R.team;S.pro.xfs=S.pro.xfs||[];
-  $('#top').innerHTML=`<div class="who">${sw(T,'lg')}<div><h1>${esc(p.n)}</h1><div class="meta">#${p.num} · ${p.pos} · ${esc(roadLabel())}</div></div></div><div class="stat">${p.ovr}<small>Overall</small></div>`;
+  $('#top').innerHTML=`<div class="who">${sw(T,'lg')}<div><h1>${esc(p.n)}</h1><div class="meta">#${p.num} · ${p.pos} · ${esc(roadLabel())}</div></div></div><div class="stat">${p.ovr}<small>Overall</small></div>`+fbTop();
   if(!['home','team'].includes(UI.tab))UI.tab='home';$('#tabs').hidden=false;
   $('#tabs').innerHTML=[['home','Career'],['team','Team']].map(t=>`<button data-a="tab" data-t="${t[0]}" class="${UI.tab===t[0]?'on':''}">${t[1]}</button>`).join('');
   (UI.tab==='team'?vProTeam:vRoad)();}

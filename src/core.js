@@ -224,7 +224,7 @@ function completeStep(played){const games=currentGames(),reg=S.phase==='regular'
   else if(reg)S.news.unshift('Week '+(S.week+1)+': bye week.');
   if(reg){
     for(const g of games){const H=S.teams[g.h],A=S.teams[g.a];H.pf+=g.hs;H.pa+=g.as;A.pf+=g.as;A.pa+=g.hs;if(g.hs>g.as){H.w++;A.l++;}else{A.w++;H.l++;}}
-    S.week++;if(Math.random()<0.35)aiSignings(1,pick(S.teams));
+    S.week++;if(window.TNTBridge)TNTBridge.season(S.week,S.schedule.length);if(Math.random()<0.35)aiSignings(1,pick(S.teams));
     if(S.week>=S.schedule.length)startPlayoffs();else if(S.week<TRADE_DEADLINE)makeOffer();else{if(S.week===TRADE_DEADLINE)S.news.unshift('The trade deadline has passed. Trades reopen in the offseason.');S.offer=null;}}
   else finishRound();
   if(S.news.length>16)S.news.length=16;save();}
